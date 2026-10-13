@@ -10,9 +10,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 
 > 🇬🇧 / 🇩🇪 The overlay supports **English** and **German**. Toggle with **F5** or via the menu.
 
-<!-- Screenshot: put an image at docs/overlay.png and remove the comment markers below.
-<p align="center"><img src="docs/overlay.png" alt="Overlay screenshot" width="700"></p>
--->
+<p align="center"><img src="docs/overlay.png" alt="In-game overlay (German UI)" width="360"></p>
 
 > [!WARNING]
 > **Use at your own risk.** Blackjack Championship is an online, server-authoritative game. Automation tools very likely violate the game's Terms of Service and **can get your account banned**. This project is not affiliated with or endorsed by the game's developers. It is provided for educational purposes. You are responsible for how you use it.
