@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace BJCCheat
 {
-    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.2.1")]
+    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.2.2")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource Log;
@@ -110,6 +110,10 @@ namespace BJCCheat
                 var harmony = new Harmony("com.bjc.cheat");
                 harmony.PatchAll(Assembly.GetExecutingAssembly());
                 Log.LogInfo("Harmony patches applied.");
+
+                // Separate, and after the game patches: this one targets BepInEx itself
+                try { LogNoise.Apply(harmony); }
+                catch (Exception ex) { Log.LogWarning($"[NOISE] filter not installed: {ex.Message}"); }
             }
             catch (Exception ex)
             {

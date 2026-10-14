@@ -289,6 +289,57 @@ static class Program
         Eq("Reset beendet die Suche", false, w.SeekingSeat);
     }
 
+    // ───────────────────── Log-Rauschfilter ─────────────────────
+
+    static void NoiseFilterTests()
+    {
+        // Die gemeldete Zeile verschwindet
+        Eq("Unity-Rauschen wird erkannt", true,
+            NoiseFilter.Match("Unity Log",
+                "Sub-emitters may not use stop actions. The Stop action will not be executed.") != null);
+
+        // ... auch mit Zusatztext davor oder dahinter
+        Eq("Rauschen mit Vorspann", true,
+            NoiseFilter.Match("Unity Log",
+                "Particle System: Sub-emitters may not use stop actions.") != null);
+
+        // Ein Filter, der zu breit trifft, schluckt echte Fehler. Das darf nie passieren:
+        Eq("fremde Unity-Meldung bleibt", null,
+            NoiseFilter.Match("Unity Log", "NullReferenceException: Object reference not set"));
+        Eq("Unity-Fehler bleibt", null,
+            NoiseFilter.Match("Unity Log", "Sub-emitters are fine, this is a real error"));
+
+        // Nur Unity wird gefiltert - ein Plugin wird nie stummgeschaltet, egal wie sein
+        // Text aussieht. Sonst koennte ein Mod sich hinter einer Engine-Meldung verstecken.
+        Eq("eigenes Plugin bleibt", null,
+            NoiseFilter.Match("BJC Cheat Suite",
+                "Sub-emitters may not use stop actions. The Stop action will not be executed."));
+        Eq("fremdes Plugin bleibt", null,
+            NoiseFilter.Match("SomeOtherMod",
+                "Sub-emitters may not use stop actions."));
+        Eq("BepInEx selbst bleibt", null,
+            NoiseFilter.Match("BepInEx",
+                "Sub-emitters may not use stop actions."));
+
+        // Gross-/Kleinschreibung zaehlt: Unity schreibt die Meldung so, wie sie dasteht
+        Eq("andere Schreibweise bleibt", null,
+            NoiseFilter.Match("Unity Log", "SUB-EMITTERS MAY NOT USE STOP ACTIONS"));
+
+        // Leeres und Fehlendes faellt nicht durch
+        Eq("leerer Text bleibt", null, NoiseFilter.Match("Unity Log", ""));
+        Eq("null-Text bleibt", null, NoiseFilter.Match("Unity Log", null));
+        Eq("null-Quelle bleibt", null,
+            NoiseFilter.Match(null, "Sub-emitters may not use stop actions."));
+
+        // Jedes Muster muss sich selbst treffen - ein Tippfehler im Muster faellt sonst
+        // nie auf, weil ein Filter, der nichts trifft, genauso aussieht wie keiner.
+        foreach (string p in NoiseFilter.Patterns)
+        {
+            Eq("Muster trifft sich selbst: " + p, p, NoiseFilter.Match("Unity Log", p));
+            Eq("Muster ist nicht leer", true, p.Length > 10);
+        }
+    }
+
     // ───────────────────── Session statistics ─────────────────────
 
     static void StatsTests()
@@ -685,6 +736,7 @@ static class Program
         BettingTests();
         StatsTests();
         WongStateTests();
+        NoiseFilterTests();
 
         Console.WriteLine();
         Console.WriteLine($"{_passed} bestanden, {_failed} fehlgeschlagen");

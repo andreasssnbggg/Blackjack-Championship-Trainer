@@ -17,5 +17,6 @@
     <Compile Include="..\src\CardCounter.cs" />
     <Compile Include="..\src\SessionStats.cs" />
     <Compile Include="..\src\WongState.cs" />
+    <Compile Include="..\src\NoiseFilter.cs" />
   </ItemGroup>
 </Project>

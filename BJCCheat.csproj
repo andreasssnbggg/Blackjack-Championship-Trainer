@@ -5,7 +5,7 @@
     <LangVersion>9.0</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Keep in step with the [BepInPlugin] version in src/Plugin.cs -->
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
   </PropertyGroup>
 
   <!-- ╔══════════════════════════════════════════════════════════════╗ -->

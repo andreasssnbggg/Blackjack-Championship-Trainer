@@ -27,7 +27,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | | |
 |---|---|
 | **Tested with** | Blackjack Championship (Steam App ID 1178160), October 2026 build |
-| **Mod version** | 1.2.1 |
+| **Mod version** | 1.2.2 |
 | **Requires** | BepInEx 5.4.x **32-bit (x86)** |
 
 ---
@@ -46,6 +46,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | **Auto-Play / Auto-Bet** | Optional: plays the strategy and places the recommended bet automatically |
 | **Auto-Rejoin** | Optional: when a table dies, looks for a new one of the same stage |
 | **Speed Hack** | 5× game speed via `Time.timeScale` |
+| **Quiet console** | Drops the Unity engine warnings that repeat every frame, so the log stays readable. Each filtered pattern is named once |
 | **Bilingual UI** | Full German/English support, starts in your system language, toggle with F7 |
 
 ## Keybinds
@@ -207,6 +208,8 @@ src/
 ├── TableRules.cs       # Learns the dealer's soft-17 rule from observed hands
 ├── WongState.cs        # Back-counting state machine (sit-out intent vs. seat state)
 ├── SessionStats.cs     # Result, expectation, standard deviation
+├── NoiseFilter.cs      # Which log lines are worthless (pure, tested)
+├── LogNoise.cs         # Keeps Unity's repeating engine warnings out of the console
 └── MonoShutdownFix.cs  # Fixes crash-on-exit caused by MonoMod
 
 test/                   # Standalone test suite, runs without the game
@@ -222,6 +225,7 @@ test/                   # Standalone test suite, runs without the game
 | **TableRules.cs** | Learns whether the dealer hits or stands on soft 17 by replaying each finished dealer hand card by card. A hand that passes through soft 17 and draws again settles H17 in one observation; the opposite case needs several sightings, because with every player busted the dealer never draws at all. |
 | **WongState.cs** | Keeps the sit-out **intent** apart from the **state** of having no seat. The server takes the seat seconds after the skipped bet, and anything that forgets the intent in between never comes back. |
 | **SessionStats.cs** | Rounds, amount wagered, result, expectation, standard deviation and the resulting verdict. Buy-ins are detected and kept out of the result. |
+| **NoiseFilter.cs / LogNoise.cs** | Unity repeats some engine warnings once per object per frame, and BepInEx forwards all of them, so one misconfigured particle effect in the game buries everything else. A prefix on `Logger.InternalLogEvent` drops the known-worthless ones and names each pattern once, so nothing disappears silently. Only messages from the `Unity Log` source are candidates — a plugin is never silenced. The whole Unity feed could be switched off in `BepInEx.cfg` instead, but game-side exceptions arrive through that feed and are worth keeping. |
 | **MonoShutdownFix.cs** | Repairs corrupted `friend_assembly_names` pointer in Mono assembly structs caused by MonoMod 22.01 (shipped with BepInEx 5.4.23). Prevents crash-on-exit in Unity 2022.3 x86. |
 
 ---
