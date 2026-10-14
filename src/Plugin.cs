@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace BJCCheat
 {
-    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.3.0")]
+    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.3.1")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource Log;
@@ -40,9 +40,7 @@ namespace BJCCheat
         {
             No,
             /// <summary>Count is good and says the shoe belongs to the house.</summary>
-            BadShoe,
-            /// <summary>Joined mid-shoe - the correct move is to wait out the shuffle.</summary>
-            UnreliableCount
+            BadShoe
         }
 
         /// <summary>
@@ -53,8 +51,10 @@ namespace BJCCheat
         public static SitOut ShouldSitOutNow()
         {
             if (!WongingEnabled) return SitOut.No;
-            if (!CardCounter.ShouldSitOut(EffectiveTrueCount(), CountIsReliable())) return SitOut.No;
-            return CountIsReliable() ? SitOut.BadShoe : SitOut.UnreliableCount;
+            // A shoe we cannot read is played from the seat at the minimum, not sat
+            // out: skipping the bet costs the seat and then a whole shoe of nothing.
+            if (!CountIsReliable()) return SitOut.No;
+            return CardCounter.ShouldSitOut(EffectiveTrueCount()) ? SitOut.BadShoe : SitOut.No;
         }
 
         /// <summary>Counter state for the log, so a suppressed count is never silent.</summary>
@@ -396,6 +396,9 @@ namespace BJCCheat
                     Colored(Lang.T("private_tickets", tickets), _center, tickets > 0 ? Muted : Bad);
             }
 
+            CardCounter.BankrollCapEnabled = GUILayout.Toggle(CardCounter.BankrollCapEnabled,
+                Lang.T("bankroll_cap_toggle"));
+
             bool speed = GUILayout.Toggle(Plugin.SpeedHack, Lang.T("speedhack"));
             if (speed != Plugin.SpeedHack)
                 SetSpeedHack(speed);
@@ -501,9 +504,7 @@ namespace BJCCheat
                 {
                     Colored(Lang.T("bet_tip_sit_out"), _medium, Orange);
                     // The ladder below would contradict this, so say why instead
-                    Colored(sitOut == Plugin.SitOut.UnreliableCount
-                        ? Lang.T("sit_out_unreliable")
-                        : Lang.T("sit_out_bad_shoe", CardCounter.WongInTrueCount), _center, Muted);
+                    Colored(Lang.T("sit_out_bad_shoe", CardCounter.WongInTrueCount), _center, Muted);
                 }
                 else
                 {
@@ -586,9 +587,7 @@ namespace BJCCheat
                     Colored(Lang.T(ActiveTable.TableFull ? "waiting_seat_full" : "waiting_seat"),
                         _center, Muted);
                 else
-                    Colored(sitOut == Plugin.SitOut.UnreliableCount
-                        ? Lang.T("waiting_outside_unreliable")
-                        : Lang.T("waiting_outside_count", tc, CardCounter.WongInTrueCount), _center, Muted);
+                    Colored(Lang.T("waiting_outside_count", tc, CardCounter.WongInTrueCount), _center, Muted);
                 return;
             }
 
@@ -597,9 +596,7 @@ namespace BJCCheat
                 if (ActiveTable.SkippedRounds < CardCounter.MaxSkippedRoundsInARow)
                 {
                     Colored(Lang.T("sit_out"), _big, Orange);
-                    Colored(sitOut == Plugin.SitOut.UnreliableCount
-                        ? Lang.T("sit_out_unreliable")
-                        : Lang.T("sit_out_bad_shoe", CardCounter.WongInTrueCount), _center, Muted);
+                    Colored(Lang.T("sit_out_bad_shoe", CardCounter.WongInTrueCount), _center, Muted);
                 }
                 else
                 {

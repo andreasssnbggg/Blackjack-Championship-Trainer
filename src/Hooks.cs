@@ -1024,9 +1024,7 @@ namespace BJCCheat
             Plugin.SitOut sitOut = Plugin.ShouldSitOutNow();
             if (sitOut != Plugin.SitOut.No)
             {
-                string why = sitOut == Plugin.SitOut.UnreliableCount
-                    ? "count unreliable, waiting for the shuffle"
-                    : $"poor shoe (TC={tc:+0.0;-0.0;0.0})";
+                string why = $"poor shoe (TC={tc:+0.0;-0.0;0.0})";
 
                 WarnPrivateWonging();
 

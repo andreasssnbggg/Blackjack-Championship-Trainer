@@ -27,7 +27,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | | |
 |---|---|
 | **Tested with** | Blackjack Championship (Steam App ID 1178160), October 2026 build |
-| **Mod version** | 1.3.0 |
+| **Mod version** | 1.3.1 |
 | **Requires** | BepInEx 5.4.x **32-bit (x86)** |
 
 ---
@@ -39,7 +39,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | **Card Counter** | Hi-Lo counting system with true count, running count, shoe progress, and player edge % |
 | **Strategy Advisor** | Basic strategy for 4–8 decks, DAS, late surrender — **plus the Hi-Lo count deviations** (Illustrious 18 and Fab 4). Every departure from the chart is shown with its reason |
 | **Dealer Rule Detection** | Watches finished dealer hands and works out whether the table is **H17 or S17**, then switches the chart over by itself |
-| **Bet Advisor** | Bet spread from the true count (1× / 2× / 4× / 8× / 16× minimum), **capped at half the Kelly stake for your bankroll** — the ladder alone will empty an account |
+| **Bet Advisor** | Bet spread from the true count (1× / 2× / 4× / 8× / 16× minimum, table max from +4), with an optional cap at half the Kelly stake for your bankroll |
 | **Back-Counting** | Optional: sits out bad shoes. The server takes your seat, counting continues from the side, and it takes a free seat again once the shoe turns |
 | **Session Statistics** | Rounds, amount wagered, result — measured against the expectation **and the standard deviation**, so a lucky run can be told apart from an edge |
 | **Insurance Advice** | Take/decline insurance based on true count (≥ +3 = take) |
@@ -145,10 +145,11 @@ With proper fallbacks: Double→Hit when can't double, Surrender→Hit when can'
 The true count is rounded to one decimal before any threshold is checked, so the number
 the overlay shows is exactly the number that acts.
 
-**Every step above is then capped by the bankroll, and that cap usually wins.** See below —
-the ladder on its own is a way to lose an account, not to grow one.
+This ladder is deliberately steep, and on a small bankroll it is a way to lose an account
+rather than grow one. The cap below says by how much; it is a switch in the menu, off by
+default, because how hard to run is the player's call and not the mod's.
 
-### The Bankroll Cap
+### The Bankroll Cap (optional)
 
 A ladder written in table minimums knows the table and nothing about the player. Sixteen
 times the minimum is a sound bet on a bankroll of a few thousand units and certain ruin on
@@ -166,10 +167,13 @@ The numbers are humbling. At true count +3 the edge is about 1 %, so half Kelly 
 | $42,000,000 | $159,000 |
 
 Which means a $10,000-minimum table wants something like **$42 million** before the 16×
-step is anything other than gambling. Below that the cap holds the bet at the table
-minimum, and when even the minimum is over the cap the overlay says so outright —
-*table too expensive for your bankroll* — because nothing at the table can fix it. The
-only fix is a cheaper table.
+step is anything other than gambling. With the cap on, the bet is held at the table
+minimum below that; with it off, the ladder runs as written. Either way the overlay says
+*table too expensive for your bankroll* when the minimum alone is over the Kelly stake,
+because nothing at the table can fix that one — only a cheaper table.
+
+Switched off (the default) none of this touches the bet. It is shown regardless, so the
+choice is made with the number in view.
 
 The table minimum itself is never capped away: it is not a choice about how much to risk,
 it is the price of being dealt in.
@@ -183,8 +187,13 @@ default: it is correct and extremely conspicuous.
 
 Deviations are only played when the count can be trusted. After joining a table mid-shoe
 most of the dealt cards were never seen and the running count is off by an unknown amount,
-so the mod falls back to plain basic strategy and the table minimum until the next shuffle
-(or sits the shoe out entirely, if back-counting is on).
+so the mod falls back to plain basic strategy and the table minimum until the next shuffle.
+
+It keeps playing through that shoe rather than sitting it out. Sitting out is the textbook
+move and the wrong one here: a skipped bet costs the seat, and the mod then spends forty
+rounds and more on the rail. Playing an unreadable shoe at the minimum runs about half a
+percent against — a fraction of one minimum bet over a whole shoe, and far the cheaper of
+the two.
 
 ### Back-Counting
 

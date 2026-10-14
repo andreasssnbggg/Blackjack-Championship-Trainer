@@ -176,23 +176,32 @@ namespace BJCCheat
         }
 
         /// <summary>
-        /// The full wonging rule. An untrustworthy count is itself a reason to sit out -
-        /// joining mid-shoe is the classic "wait for the shuffle" situation, and playing
-        /// on through it was exactly the bug that made this feature look dead.
+        /// The full wonging rule. Only a count we trust AND that is genuinely bad gets
+        /// us off the table.
+        ///
+        /// An untrustworthy count used to count as a reason to sit out, which is the
+        /// textbook move and wrong for this game. Joining mid-shoe meant skipping a bet,
+        /// the server took the seat, and the mod then waited out the whole shoe doing
+        /// nothing - forty rounds and more of an idle bot, twice over in one evening.
+        /// The alternative costs almost nothing: playing a shoe we cannot read at the
+        /// table minimum runs at about half a percent against, so roughly a quarter of
+        /// one minimum bet per shoe. That is the cheaper of the two by a wide margin.
         /// </summary>
         public static bool ShouldSitOut(float trueCount, bool countReliable)
         {
-            if (!countReliable) return true;
+            if (!countReliable) return false;
             return ShouldSitOut(trueCount);
         }
 
         /// <summary>
-        /// Worth taking a seat again? Needs a count we trust AND one that is actually
-        /// favourable - not merely "no longer terrible".
+        /// Worth taking a seat again? Either the count turned favourable, or we cannot
+        /// read it at all - and a shoe we cannot read is played from a seat at the
+        /// minimum, not from the rail.
         /// </summary>
         public static bool ShouldComeBack(float trueCount, bool countReliable)
         {
-            return countReliable && trueCount >= WongInTrueCount;
+            if (!countReliable) return true;
+            return trueCount >= WongInTrueCount;
         }
 
         /// <summary>
@@ -209,6 +218,14 @@ namespace BJCCheat
             if (trueCount >= 1f) return 2f;
             return 1f;
         }
+
+        /// <summary>
+        /// Whether bets are held to the Kelly stake for the bankroll. Off by default:
+        /// the spread is a deliberate choice about how hard to run, and the mod does
+        /// not get to overrule it. The overlay still shows what the bankroll carries,
+        /// so the choice is made with the number in view rather than without it.
+        /// </summary>
+        public static bool BankrollCapEnabled = false;
 
         /// <summary>Variance of one unit wagered at blackjack (standard deviation 1.15).</summary>
         public const double VariancePerUnit = 1.32;
@@ -280,12 +297,15 @@ namespace BJCCheat
             long bet = trueCount >= MaxBetTrueCount && max > 0 ? max : (long)(min * SpreadUnits(trueCount));
             if (max > 0) bet = Math.Min(bet, max);
 
-            // Bankroll before anything else. The table minimum survives the cap: it is
-            // not a choice about how much to risk, it is the cost of playing this table
-            // at all - and when it sits above the cap, the answer is a cheaper table,
-            // which TableTooExpensive says out loud instead of quietly over-betting.
-            long cap = MaxDefensibleBet(bankroll, trueCount);
-            bet = Math.Min(bet, Math.Max(cap, min));
+            // Bankroll cap, when the player wants it. Off by default: the ladder is a
+            // deliberate choice to run hot, and that choice is not the mod's to make.
+            // The table minimum survives the cap either way - it is not a decision
+            // about risk, it is the cost of playing this table at all.
+            if (BankrollCapEnabled)
+            {
+                long cap = MaxDefensibleBet(bankroll, trueCount);
+                bet = Math.Min(bet, Math.Max(cap, min));
+            }
 
             if (stack > 0) bet = Math.Min(bet, stack);
             if (step > 0) bet -= bet % step;

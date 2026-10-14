@@ -142,15 +142,11 @@ static class Program
         // min 100, max 10000, step 100, stack 1000000
         Eq("Einsatz TC 0 = Minimum", 100L, CardCounter.RecommendedBet(0f, 1000000, 100, 10000, 100));
         Eq("Einsatz TC +2 = 4x", 400L, CardCounter.RecommendedBet(2f, 1000000, 100, 10000, 100));
-        // Frueher stand hier "TC +4 = Tischmaximum", und genau das hat ein Konto
-        // geleert: das Tischmaximum hat mit dem Guthaben nichts zu tun. Bei 1.000.000
-        // und 1,5 % Vorteil traegt halbes Kelly 5.681, abgerundet auf die
-        // Schrittweite 5.600 - nicht die 10.000, die der Tisch erlauben wuerde.
-        Eq("Einsatz TC +4 vom Guthaben gedeckelt", 5600L, CardCounter.RecommendedBet(4f, 1000000, 100, 10000, 100));
+        // Standard: ohne Deckel, die Leiter laeuft voll durch bis zum Tischmaximum.
+        Eq("Deckel ist standardmaessig aus", false, CardCounter.BankrollCapEnabled);
+        Eq("Einsatz TC +4 = Tischmaximum", 10000L, CardCounter.RecommendedBet(4f, 1000000, 100, 10000, 100));
         Eq("Einsatz nie unter Minimum", 100L, CardCounter.RecommendedBet(-5f, 1000000, 100, 10000, 100));
-        // Winziges Guthaben: der Deckel liegt unter dem Tischminimum, also bleibt es
-        // beim Minimum - und das ist weiterhin hoechstens der Stack.
-        Eq("Einsatz nie ueber Stack", 100L, CardCounter.RecommendedBet(4f, 250, 100, 10000, 0));
+        Eq("Einsatz nie ueber Stack", 250L, CardCounter.RecommendedBet(4f, 250, 100, 10000, 0));
         // 8 units x 100 = 800, abgerundet auf die Schrittweite 250 -> 750
         Eq("Einsatz haelt Schrittweite", 750L, CardCounter.RecommendedBet(2.5f, 1000000, 100, 10000, 250));
 
@@ -159,10 +155,13 @@ static class Program
         Eq("kein Aussetzen bei TC -1", false, CardCounter.ShouldSitOut(-1f));
         Eq("kein Aussetzen bei TC 0", false, CardCounter.ShouldSitOut(0f));
 
-        // Die Regel, die vorher gefehlt hat: unzuverlaessige Zaehlung = aussetzen,
-        // egal welche Zahl gerade herauskommt
-        Eq("Aussetzen bei unzuverlaessiger Zaehlung", true, CardCounter.ShouldSitOut(0f, false));
-        Eq("Aussetzen trotz gutem Count, wenn unzuverlaessig", true, CardCounter.ShouldSitOut(5f, false));
+        // Frueher hiess "Zaehlung unzuverlaessig" aussetzen. Das ist die Lehrbuch-
+        // antwort und in diesem Spiel falsch: ein ausgelassener Einsatz kostet den
+        // Platz, und der Bot stand danach einen ganzen Schuh lang daneben. Einen
+        // unlesbaren Schuh am Tischminimum mitzuspielen kostet rund ein halbes
+        // Prozent davon - ein Bruchteil eines Minimumeinsatzes pro Schuh.
+        Eq("kein Aussetzen bei unzuverlaessiger Zaehlung", false, CardCounter.ShouldSitOut(0f, false));
+        Eq("auch bei schlechter Zahl nicht, wenn unzuverlaessig", false, CardCounter.ShouldSitOut(-5f, false));
         Eq("kein Aussetzen bei TC 0 und zuverlaessig", false, CardCounter.ShouldSitOut(0f, true));
         Eq("Aussetzen bei TC -2 und zuverlaessig", true, CardCounter.ShouldSitOut(-2f, true));
 
@@ -170,7 +169,11 @@ static class Program
         Eq("Rueckkehr bei TC 0", true, CardCounter.ShouldComeBack(0f, true));
         Eq("Rueckkehr bei TC +2", true, CardCounter.ShouldComeBack(2f, true));
         Eq("keine Rueckkehr bei TC -0.5", false, CardCounter.ShouldComeBack(-0.5f, true));
-        Eq("keine Rueckkehr bei unzuverlaessiger Zaehlung", false, CardCounter.ShouldComeBack(3f, false));
+        // Wer draussen steht und die Zaehlung nicht lesen kann, gehoert zurueck an
+        // den Tisch - ein unlesbarer Schuh wird vom Platz aus am Minimum gespielt,
+        // nicht von der Bande aus beobachtet.
+        Eq("Rueckkehr bei unzuverlaessiger Zaehlung", true, CardCounter.ShouldComeBack(3f, false));
+        Eq("Rueckkehr auch bei schlechter Zahl, wenn unzuverlaessig", true, CardCounter.ShouldComeBack(-3f, false));
         // Totband: zwischen Rausgehen und Reinkommen darf es keine Ueberschneidung geben
         Eq("Totband vorhanden", true, CardCounter.WongInTrueCount > CardCounter.WongOutTrueCount);
         for (float t = -3f; t <= 3f; t += 0.1f)
@@ -302,6 +305,9 @@ static class Program
         // Der Fall, der ein Konto geleert hat: 628.000 Guthaben, Tischminimum 10.000,
         // also 63 Einheiten. Die Leiter wollte bei True Count +3,1 das 16-fache,
         // 160.000 - ein Viertel des gesamten Guthabens auf eine Hand.
+        // Diese Tests pruefen den Deckel, also muss er an sein - und am Ende wieder
+        // aus, sonst faerbt er auf alles ab, was danach geprueft wird.
+        CardCounter.BankrollCapEnabled = true;
         long br = 628000, min = 10000, max = 500000;
         Eq("ruinoeser Einsatz wird gedeckelt", 10000L,
             CardCounter.RecommendedBet(3.1f, br, min, max, 0, br));
@@ -360,6 +366,13 @@ static class Program
         // Schrittweite bleibt gewahrt
         long stepped = CardCounter.RecommendedBet(3.0f, 50000000, 10000, 500000, 25000, 50000000);
         Eq("Schrittweite eingehalten", 0L, stepped % 25000);
+
+        // Ausgeschaltet laeuft die Leiter wieder ungebremst - das ist der Standard
+        CardCounter.BankrollCapEnabled = false;
+        Eq("ohne Deckel wieder voller Einsatz", 160000L,
+            CardCounter.RecommendedBet(3.1f, br, min, max, 0, br));
+        Eq("ohne Deckel Tischmaximum bei TC +4", 500000L,
+            CardCounter.RecommendedBet(4.0f, br, min, max, 0, br));
     }
 
     // ───────────────────── Mehrere Hände (privater Tisch) ─────────────────────

@@ -281,6 +281,10 @@ namespace BJCCheat
                 {"de", "True Count {0:+0.0;-0.0;0.0} · zurück ab {1:+0.#;-0.#;0}"},
                 {"en", "True Count {0:+0.0;-0.0;0.0} · back from {1:+0.#;-0.#;0}"}
             }},
+            {"bankroll_cap_toggle", new Dictionary<string, string> {
+                {"de", "Einsätze auf halbes Kelly begrenzen (schützt das Guthaben, bremst stark)"},
+                {"en", "Cap bets at half Kelly (protects the bankroll, slows it right down)"}
+            }},
             {"table_too_expensive", new Dictionary<string, string> {
                 {"de", "TISCH ZU TEUER FÜR DEIN GUTHABEN"},
                 {"en", "TABLE TOO EXPENSIVE FOR YOUR BANKROLL"}
