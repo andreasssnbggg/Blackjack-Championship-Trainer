@@ -281,6 +281,14 @@ namespace BJCCheat
                 {"de", "True Count {0:+0.0;-0.0;0.0} · zurück ab {1:+0.#;-0.#;0}"},
                 {"en", "True Count {0:+0.0;-0.0;0.0} · back from {1:+0.#;-0.#;0}"}
             }},
+            {"table_too_expensive", new Dictionary<string, string> {
+                {"de", "TISCH ZU TEUER FÜR DEIN GUTHABEN"},
+                {"en", "TABLE TOO EXPENSIVE FOR YOUR BANKROLL"}
+            }},
+            {"table_too_expensive_why", new Dictionary<string, string> {
+                {"de", "Guthaben = {0} Tischminimum · Einsätze bleiben am Minimum (für den vollen Spread bräuchte es ~{1:N0})"},
+                {"en", "Bankroll = {0} table minimums · bets stay at the minimum (the full spread would want ~{1:N0})"}
+            }},
             {"hands_per_round", new Dictionary<string, string> {
                 {"de", "Hände pro Runde:"},
                 {"en", "Hands per round:"}

@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace BJCCheat
 {
-    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.2.4")]
+    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.3.0")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource Log;
@@ -104,6 +104,13 @@ namespace BJCCheat
         public static bool CanDouble = false;
         public static bool CanSurrender = false;
         public static int NumDecks = 6;
+
+        /// <summary>
+        /// Everything the player owns, not just what is on the table. This is what a
+        /// bet has to be measured against - the stack in front of you says nothing
+        /// about whether you can afford to lose it.
+        /// </summary>
+        public static long Bankroll;
 
         // Local seat stack and table limits, for the bet tip
         public static long Stack = 0;
@@ -478,6 +485,17 @@ namespace BJCCheat
             GUILayout.Space(4);
             if (Plugin.BetMin > 0)
             {
+                // A table whose minimum is already over the Kelly stake cannot be
+                // played safely at any count, and no amount of counting changes that
+                if (CardCounter.TableTooExpensive(Plugin.Bankroll, Plugin.BetMin))
+                {
+                    Colored(Lang.T("table_too_expensive"), _medium, Bad);
+                    Colored(Lang.T("table_too_expensive_why",
+                        Plugin.Bankroll / Math.Max(1, Plugin.BetMin),
+                        CardCounter.BankrollNeededFor(Plugin.BetMin * 16, 3f)), _center, Muted);
+                    GUILayout.Space(4);
+                }
+
                 Plugin.SitOut sitOut = Plugin.ShouldSitOutNow();
                 if (sitOut != Plugin.SitOut.No)
                 {

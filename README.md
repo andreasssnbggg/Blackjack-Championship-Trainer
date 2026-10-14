@@ -27,7 +27,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | | |
 |---|---|
 | **Tested with** | Blackjack Championship (Steam App ID 1178160), October 2026 build |
-| **Mod version** | 1.2.4 |
+| **Mod version** | 1.3.0 |
 | **Requires** | BepInEx 5.4.x **32-bit (x86)** |
 
 ---
@@ -39,7 +39,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | **Card Counter** | Hi-Lo counting system with true count, running count, shoe progress, and player edge % |
 | **Strategy Advisor** | Basic strategy for 4–8 decks, DAS, late surrender — **plus the Hi-Lo count deviations** (Illustrious 18 and Fab 4). Every departure from the chart is shown with its reason |
 | **Dealer Rule Detection** | Watches finished dealer hands and works out whether the table is **H17 or S17**, then switches the chart over by itself |
-| **Bet Advisor** | Bet spread from the true count (1× / 2× / 4× / 8× / 16× minimum, table max from +4) |
+| **Bet Advisor** | Bet spread from the true count (1× / 2× / 4× / 8× / 16× minimum), **capped at half the Kelly stake for your bankroll** — the ladder alone will empty an account |
 | **Back-Counting** | Optional: sits out bad shoes. The server takes your seat, counting continues from the side, and it takes a free seat again once the shoe turns |
 | **Session Statistics** | Rounds, amount wagered, result — measured against the expectation **and the standard deviation**, so a lucky run can be told apart from an edge |
 | **Insurance Advice** | Take/decline insurance based on true count (≥ +3 = take) |
@@ -144,6 +144,35 @@ With proper fallbacks: Double→Hit when can't double, Surrender→Hit when can'
 
 The true count is rounded to one decimal before any threshold is checked, so the number
 the overlay shows is exactly the number that acts.
+
+**Every step above is then capped by the bankroll, and that cap usually wins.** See below —
+the ladder on its own is a way to lose an account, not to grow one.
+
+### The Bankroll Cap
+
+A ladder written in table minimums knows the table and nothing about the player. Sixteen
+times the minimum is a sound bet on a bankroll of a few thousand units and certain ruin on
+sixty, and the ladder cannot tell those apart. So every bet is also capped at **half the
+Kelly stake** — edge divided by variance (1.32 per unit), times the bankroll, halved,
+because full Kelly is correct and unendurable.
+
+The numbers are humbling. At true count +3 the edge is about 1 %, so half Kelly is roughly
+0.38 % of the bankroll:
+
+| Bankroll | Defensible bet at TC +3 |
+|---|---|
+| $628,000 | $2,400 |
+| $5,000,000 | $18,900 |
+| $42,000,000 | $159,000 |
+
+Which means a $10,000-minimum table wants something like **$42 million** before the 16×
+step is anything other than gambling. Below that the cap holds the bet at the table
+minimum, and when even the minimum is over the cap the overlay says so outright —
+*table too expensive for your bankroll* — because nothing at the table can fix it. The
+only fix is a cheaper table.
+
+The table minimum itself is never capped away: it is not a choice about how much to risk,
+it is the price of being dealt in.
 
 ### Count Deviations
 
@@ -261,6 +290,7 @@ test/                   # Standalone test suite, runs without the game
 | **TableRules.cs** | Learns whether the dealer hits or stands on soft 17 by replaying each finished dealer hand card by card. A hand that passes through soft 17 and draws again settles H17 in one observation; the opposite case needs several sightings, because with every player busted the dealer never draws at all. |
 | **WongState.cs** | Keeps the sit-out **intent** apart from the **state** of having no seat. The server takes the seat seconds after the skipped bet, and anything that forgets the intent in between never comes back. |
 | **SessionStats.cs** | Rounds, amount wagered, result, expectation, standard deviation and the resulting verdict. Buy-ins are detected and kept out of the result. |
+| **CardCounter.MaxDefensibleBet** | Half the Kelly stake for the current bankroll and count — the ceiling every bet passes through. `BankrollNeededFor` is its inverse, so the overlay can say what a table actually asks for, and `TableTooExpensive` reports the case no bet size can rescue. |
 | **CardCounter.PerHandBet** | Risk-equivalent stake when several hands are played in one round. Correlated hands are not independent bets, so the per-hand stake comes down as the hand count goes up. |
 | **NoiseFilter.cs / LogNoise.cs** | Unity repeats some engine warnings once per object per frame, and BepInEx forwards all of them, so one misconfigured particle effect in the game buries everything else. A prefix on `Logger.InternalLogEvent` drops the known-worthless ones and names each pattern once, so nothing disappears silently. Only messages from the `Unity Log` source are candidates — a plugin is never silenced. The whole Unity feed could be switched off in `BepInEx.cfg` instead, but game-side exceptions arrive through that feed and are worth keeping. |
 | **MonoShutdownFix.cs** | Repairs corrupted `friend_assembly_names` pointer in Mono assembly structs caused by MonoMod 22.01 (shipped with BepInEx 5.4.23). Prevents crash-on-exit in Unity 2022.3 x86. |

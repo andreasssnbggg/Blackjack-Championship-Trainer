@@ -187,6 +187,11 @@ namespace BJCCheat
             if (seat != null)
             {
                 Plugin.Stack = seat.Stack;
+                // TotalChip is everything the player owns; the seat stack is only the
+                // buy-in sitting on this table. Kelly is about the former.
+                long owned = 0;
+                try { owned = seat.TotalChip; } catch { }
+                Plugin.Bankroll = owned > 0 ? owned : seat.Stack;
                 _lastSeatIndex = seat.SeatIndex;
                 // Fires only on the transition back onto a seat, not on every update
                 if (Wong.ObserveSeated())
@@ -610,6 +615,31 @@ namespace BJCCheat
             }
         }
 
+        private static bool _tooExpensiveWarned;
+
+        /// <summary>
+        /// Said once per table when the minimum bet is already more than the bankroll
+        /// can carry. Nothing at the table can fix that, so it has to be said plainly
+        /// rather than quietly worked around.
+        /// </summary>
+        static void WarnTooExpensive(long bankroll)
+        {
+            if (!CardCounter.TableTooExpensive(bankroll, Plugin.BetMin))
+            {
+                _tooExpensiveWarned = false;
+                return;
+            }
+            if (_tooExpensiveWarned) return;
+            _tooExpensiveWarned = true;
+
+            long units = bankroll / Math.Max(1L, Plugin.BetMin);
+            long needed = CardCounter.BankrollNeededFor(Plugin.BetMin * 16, 3f);
+            Plugin.Log.LogWarning(
+                $"[BANKROLL] this table is too expensive: {bankroll:N0} is {units} table minimums. " +
+                $"Bets are held at the minimum because anything more is over the Kelly stake. " +
+                $"Spreading to 16x here would want about {needed:N0}. A cheaper table is the only fix.");
+        }
+
         static string AdviceToActionStr(string advice)
         {
             switch (advice)
@@ -983,8 +1013,12 @@ namespace BJCCheat
 
             // Calculate recommended bet
             float tc = Plugin.EffectiveTrueCount();
-            long bet = CardCounter.RecommendedBet(tc, Plugin.Stack, Plugin.BetMin, Plugin.BetMax, Plugin.BetStep);
+            long bankroll = Plugin.Bankroll > 0 ? Plugin.Bankroll : Plugin.Stack;
+            long bet = CardCounter.RecommendedBet(tc, Plugin.Stack, Plugin.BetMin, Plugin.BetMax,
+                                                  Plugin.BetStep, bankroll);
             if (bet <= 0) bet = Plugin.BetMin;
+
+            WarnTooExpensive(bankroll);
 
             // ── Wonging: skip the bad shoes instead of feeding them the minimum ──
             Plugin.SitOut sitOut = Plugin.ShouldSitOutNow();

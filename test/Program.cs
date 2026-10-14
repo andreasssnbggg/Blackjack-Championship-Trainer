@@ -142,9 +142,15 @@ static class Program
         // min 100, max 10000, step 100, stack 1000000
         Eq("Einsatz TC 0 = Minimum", 100L, CardCounter.RecommendedBet(0f, 1000000, 100, 10000, 100));
         Eq("Einsatz TC +2 = 4x", 400L, CardCounter.RecommendedBet(2f, 1000000, 100, 10000, 100));
-        Eq("Einsatz TC +4 = Tischmaximum", 10000L, CardCounter.RecommendedBet(4f, 1000000, 100, 10000, 100));
+        // Frueher stand hier "TC +4 = Tischmaximum", und genau das hat ein Konto
+        // geleert: das Tischmaximum hat mit dem Guthaben nichts zu tun. Bei 1.000.000
+        // und 1,5 % Vorteil traegt halbes Kelly 5.681, abgerundet auf die
+        // Schrittweite 5.600 - nicht die 10.000, die der Tisch erlauben wuerde.
+        Eq("Einsatz TC +4 vom Guthaben gedeckelt", 5600L, CardCounter.RecommendedBet(4f, 1000000, 100, 10000, 100));
         Eq("Einsatz nie unter Minimum", 100L, CardCounter.RecommendedBet(-5f, 1000000, 100, 10000, 100));
-        Eq("Einsatz nie ueber Stack", 250L, CardCounter.RecommendedBet(4f, 250, 100, 10000, 0));
+        // Winziges Guthaben: der Deckel liegt unter dem Tischminimum, also bleibt es
+        // beim Minimum - und das ist weiterhin hoechstens der Stack.
+        Eq("Einsatz nie ueber Stack", 100L, CardCounter.RecommendedBet(4f, 250, 100, 10000, 0));
         // 8 units x 100 = 800, abgerundet auf die Schrittweite 250 -> 750
         Eq("Einsatz haelt Schrittweite", 750L, CardCounter.RecommendedBet(2.5f, 1000000, 100, 10000, 250));
 
@@ -287,6 +293,73 @@ static class Program
         w.WantSeat();
         w.Reset();
         Eq("Reset beendet die Suche", false, w.SeekingSeat);
+    }
+
+    // ───────────────────── Einsatz gegen das Guthaben ─────────────────────
+
+    static void BankrollTests()
+    {
+        // Der Fall, der ein Konto geleert hat: 628.000 Guthaben, Tischminimum 10.000,
+        // also 63 Einheiten. Die Leiter wollte bei True Count +3,1 das 16-fache,
+        // 160.000 - ein Viertel des gesamten Guthabens auf eine Hand.
+        long br = 628000, min = 10000, max = 500000;
+        Eq("ruinoeser Einsatz wird gedeckelt", 10000L,
+            CardCounter.RecommendedBet(3.1f, br, min, max, 0, br));
+        Eq("auch bei True Count +4 kein Tischmaximum", 10000L,
+            CardCounter.RecommendedBet(4.0f, br, min, max, 0, br));
+        Eq("Tisch wird als zu teuer erkannt", true, CardCounter.TableTooExpensive(br, min));
+
+        // Mit genug Guthaben darf die Leiter wieder arbeiten
+        long rich = 100000000L;
+        Eq("reiches Konto darf spreaden", 160000L,
+            CardCounter.RecommendedBet(3.1f, rich, min, max, 0, rich));
+        Eq("reicher Tisch nicht zu teuer", false, CardCounter.TableTooExpensive(rich, min));
+
+        // Der Deckel darf nie unter das Tischminimum druecken: weniger als das
+        // Minimum ist kein gueltiger Einsatz, man kann nur den Tisch wechseln.
+        for (float tc = -3f; tc <= 5f; tc += 0.5f)
+        {
+            long bet = CardCounter.RecommendedBet(tc, br, min, max, 0, br);
+            Eq("nie unter Tischminimum (TC " + tc + ")", true, bet >= min);
+            Eq("nie ueber Tischmaximum (TC " + tc + ")", true, bet <= max);
+        }
+
+        // Ohne Vorteil rechtfertigt kein Guthaben einen Aufschlag
+        Eq("kein Vorteil, kein Deckel ueber Null", 0L, CardCounter.MaxDefensibleBet(br, 1f));
+        Eq("negativer Count erst recht nicht", 0L, CardCounter.MaxDefensibleBet(br, -2f));
+        Eq("ohne Guthaben nichts", 0L, CardCounter.MaxDefensibleBet(0, 5f));
+        Eq("negatives Guthaben nichts", 0L, CardCounter.MaxDefensibleBet(-100, 5f));
+
+        // Der Deckel waechst mit Guthaben und mit dem Vorteil, nie andersherum
+        Eq("mehr Guthaben, groesserer Deckel", true,
+            CardCounter.MaxDefensibleBet(2000000, 3f) > CardCounter.MaxDefensibleBet(1000000, 3f));
+        Eq("hoeherer Count, groesserer Deckel", true,
+            CardCounter.MaxDefensibleBet(1000000, 4f) > CardCounter.MaxDefensibleBet(1000000, 3f));
+        // Linear im Guthaben, bis auf das Abschneiden auf ganze Einheiten
+        Eq("doppeltes Guthaben, doppelter Deckel", true,
+            Math.Abs(CardCounter.MaxDefensibleBet(2000000, 3f)
+                     - 2 * CardCounter.MaxDefensibleBet(1000000, 3f)) <= 1);
+
+        // Hin und zurueck: das noetige Guthaben fuer einen Einsatz muss genau diesen
+        // Einsatz wieder erlauben. Faellt das auseinander, luegt eine der beiden Zahlen.
+        for (float tc = 1.5f; tc <= 5f; tc += 0.5f)
+        {
+            long want = 50000;
+            long need = CardCounter.BankrollNeededFor(want, tc);
+            Eq("Umkehrung traegt den Einsatz (TC " + tc + ")", true,
+                CardCounter.MaxDefensibleBet(need, tc) >= want - 1);
+        }
+        Eq("ohne Vorteil kein noetiges Guthaben", 0L, CardCounter.BankrollNeededFor(50000, 1f));
+
+        // Die alte Signatur ohne Guthaben nimmt den Stack dafuer - sonst waere der
+        // Schutz je nach Aufrufstelle an oder aus.
+        Eq("alte Signatur deckelt ebenfalls",
+            CardCounter.RecommendedBet(3.1f, br, min, max, 0, br),
+            CardCounter.RecommendedBet(3.1f, br, min, max, 0));
+
+        // Schrittweite bleibt gewahrt
+        long stepped = CardCounter.RecommendedBet(3.0f, 50000000, 10000, 500000, 25000, 50000000);
+        Eq("Schrittweite eingehalten", 0L, stepped % 25000);
     }
 
     // ───────────────────── Mehrere Hände (privater Tisch) ─────────────────────
@@ -784,6 +857,7 @@ static class Program
         WongStateTests();
         NoiseFilterTests();
         PerHandBetTests();
+        BankrollTests();
 
         Console.WriteLine();
         Console.WriteLine($"{_passed} bestanden, {_failed} fehlgeschlagen");

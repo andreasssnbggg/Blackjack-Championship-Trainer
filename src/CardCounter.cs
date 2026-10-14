@@ -210,16 +210,98 @@ namespace BJCCheat
             return 1f;
         }
 
+        /// <summary>Variance of one unit wagered at blackjack (standard deviation 1.15).</summary>
+        public const double VariancePerUnit = 1.32;
+
         /// <summary>
-        /// Spread bet, kept within the table limits and the stack.
+        /// Share of the full Kelly stake actually bet. Full Kelly maximises long-run
+        /// growth and is far too wild to sit through; half is the usual working choice
+        /// and quarters the swings for three quarters of the growth.
+        /// </summary>
+        public const double KellyFraction = 0.5;
+
+        /// <summary>
+        /// The largest bet the bankroll justifies at this count: half of the Kelly
+        /// stake, which is edge divided by variance, times the bankroll.
+        ///
+        /// This is the number the bet ladder was missing. A spread written in table
+        /// minimums knows the table and nothing about the player - 16x the minimum is
+        /// a sound bet on a bankroll of a thousand units and certain ruin on sixty,
+        /// and the ladder cannot tell those apart. Everything else in this plugin can
+        /// only improve the edge by fractions of a percent; betting more than the
+        /// bankroll carries loses all of it, and no edge survives that.
+        ///
+        /// Zero when there is no edge to bet into - then only the table minimum is
+        /// defensible, because it is the price of being dealt in at all.
+        /// </summary>
+        public static long MaxDefensibleBet(long bankroll, float trueCount)
+        {
+            if (bankroll <= 0) return 0;
+
+            double edge = PlayerEdgeFraction(trueCount);
+            if (edge <= 0) return 0;
+
+            return (long)(bankroll * KellyFraction * edge / VariancePerUnit);
+        }
+
+        /// <summary>Player edge as a fraction (0.01 = 1 %), the percent figure over 100.</summary>
+        public static double PlayerEdgeFraction(float trueCount)
+        {
+            return (0.5 * trueCount - 0.5) / 100.0;
+        }
+
+        /// <summary>
+        /// Bankroll needed before a given bet is defensible at this count - the inverse
+        /// of MaxDefensibleBet, so the overlay can say what the table actually asks for.
+        /// Zero when there is no edge, since no bankroll makes a negative bet right.
+        /// </summary>
+        public static long BankrollNeededFor(long bet, float trueCount)
+        {
+            double edge = PlayerEdgeFraction(trueCount);
+            if (edge <= 0 || bet <= 0) return 0;
+            return (long)(bet * VariancePerUnit / (KellyFraction * edge));
+        }
+
+        /// <summary>
+        /// Spread bet, kept within the table limits, the bankroll and the stack.
         /// </summary>
         public static long RecommendedBet(float trueCount, long stack, long min, long max, long step)
         {
+            return RecommendedBet(trueCount, stack, min, max, step, stack);
+        }
+
+        /// <summary>
+        /// As above, with the bankroll given separately from the chips on the table.
+        /// The bankroll is what the bet has to be measured against; the stack is only
+        /// what happens to be in front of us this minute.
+        /// </summary>
+        public static long RecommendedBet(float trueCount, long stack, long min, long max, long step, long bankroll)
+        {
             long bet = trueCount >= MaxBetTrueCount && max > 0 ? max : (long)(min * SpreadUnits(trueCount));
             if (max > 0) bet = Math.Min(bet, max);
+
+            // Bankroll before anything else. The table minimum survives the cap: it is
+            // not a choice about how much to risk, it is the cost of playing this table
+            // at all - and when it sits above the cap, the answer is a cheaper table,
+            // which TableTooExpensive says out loud instead of quietly over-betting.
+            long cap = MaxDefensibleBet(bankroll, trueCount);
+            bet = Math.Min(bet, Math.Max(cap, min));
+
             if (stack > 0) bet = Math.Min(bet, stack);
             if (step > 0) bet -= bet % step;
             return Math.Max(bet, min);
+        }
+
+        /// <summary>
+        /// This table costs more per round than the bankroll can carry even at a good
+        /// count: the minimum alone is over the Kelly stake. Nothing can be done about
+        /// it at the table - it is the wrong table for the money.
+        /// </summary>
+        public static bool TableTooExpensive(long bankroll, long min)
+        {
+            if (bankroll <= 0 || min <= 0) return false;
+            // Measured at a clearly favourable count, so this says "even at its best"
+            return MaxDefensibleBet(bankroll, 3f) < min;
         }
 
         /// <summary>
