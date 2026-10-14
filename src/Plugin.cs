@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace BJCCheat
 {
-    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.3.2")]
+    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.3.3")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource Log;
@@ -496,7 +496,11 @@ namespace BJCCheat
                 if (CardCounter.TableTooExpensive(Plugin.Bankroll, Plugin.BetMin))
                 {
                     Colored(Lang.T("table_too_expensive"), _medium, Bad);
-                    Colored(Lang.T("table_too_expensive_why",
+                    // "Bets stay at the minimum" is only true with the cap switched on.
+                    // Saying it either way described a mod that was not running.
+                    Colored(Lang.T(CardCounter.BankrollCapEnabled
+                            ? "table_too_expensive_capped"
+                            : "table_too_expensive_open",
                         Plugin.Bankroll / Math.Max(1, Plugin.BetMin),
                         CardCounter.BankrollNeededFor(Plugin.BetMin * 16, 3f)), _center, Muted);
                     GUILayout.Space(4);
@@ -629,6 +633,16 @@ namespace BJCCheat
 
         void DrawPlayAdvice()
         {
+            // A hand over 21 is over. The chart has no row for it, so the lookup fell
+            // through to "17 or more means stand" and the overlay calmly advised
+            // standing on 23. There is nothing to decide once the hand is dead.
+            if (Plugin.PlayerScore > 21)
+            {
+                Colored(Lang.T("bust"), _big, Bad);
+                Colored(Lang.T("bust_hint"), _center, Muted);
+                return;
+            }
+
             Advice a = Plugin.Advisor.Advise(
                 Plugin.PlayerScore, Plugin.DealerUpCard, Plugin.PlayerSoft, Plugin.PlayerPair,
                 Plugin.CanSplit, Plugin.CanDouble, Plugin.CanSurrender,

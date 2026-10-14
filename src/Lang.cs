@@ -297,9 +297,21 @@ namespace BJCCheat
                 {"de", "TISCH ZU TEUER FÜR DEIN GUTHABEN"},
                 {"en", "TABLE TOO EXPENSIVE FOR YOUR BANKROLL"}
             }},
-            {"table_too_expensive_why", new Dictionary<string, string> {
+            {"table_too_expensive_capped", new Dictionary<string, string> {
                 {"de", "Guthaben = {0} Tischminimum · Einsätze bleiben am Minimum (für den vollen Spread bräuchte es ~{1:N0})"},
                 {"en", "Bankroll = {0} table minimums · bets stay at the minimum (the full spread would want ~{1:N0})"}
+            }},
+            {"table_too_expensive_open", new Dictionary<string, string> {
+                {"de", "Guthaben = {0} Tischminimum · der Spread läuft trotzdem, das Limit ist aus (er bräuchte ~{1:N0})"},
+                {"en", "Bankroll = {0} table minimums · the spread runs anyway, the limit is off (it would want ~{1:N0})"}
+            }},
+            {"bust", new Dictionary<string, string> {
+                {"de", "ÜBERKAUFT"},
+                {"en", "BUST"}
+            }},
+            {"bust_hint", new Dictionary<string, string> {
+                {"de", "Hand ist durch - nichts mehr zu entscheiden"},
+                {"en", "Hand is over - nothing left to decide"}
             }},
             {"hands_per_round", new Dictionary<string, string> {
                 {"de", "Hände pro Runde:"},

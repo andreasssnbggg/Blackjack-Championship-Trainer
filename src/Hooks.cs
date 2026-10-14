@@ -634,10 +634,12 @@ namespace BJCCheat
 
             long units = bankroll / Math.Max(1L, Plugin.BetMin);
             long needed = CardCounter.BankrollNeededFor(Plugin.BetMin * 16, 3f);
+            string consequence = CardCounter.BankrollCapEnabled
+                ? "Bets are held at the minimum, because anything more is over the Kelly stake."
+                : "The spread runs anyway - the bankroll limit is switched off in the menu.";
             Plugin.Log.LogWarning(
-                $"[BANKROLL] this table is too expensive: {bankroll:N0} is {units} table minimums. " +
-                $"Bets are held at the minimum because anything more is over the Kelly stake. " +
-                $"Spreading to 16x here would want about {needed:N0}. A cheaper table is the only fix.");
+                $"[BANKROLL] this table is expensive for the bankroll: {bankroll:N0} is {units} table " +
+                $"minimums. {consequence} Spreading to 16x here would want about {needed:N0}.");
         }
 
         static string AdviceToActionStr(string advice)

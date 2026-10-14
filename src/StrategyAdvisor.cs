@@ -122,6 +122,12 @@ namespace BJCCheat
             if (dealerUpCard <= 0 || playerScore <= 0)
                 return new Advice("WAIT");
 
+            // Over 21 the hand is finished and there is nothing to advise. Without this
+            // the lookup falls past the end of the chart into "17 or more stands", and
+            // the overlay recommends standing on 23 with a straight face.
+            if (playerScore > 21)
+                return new Advice("BUST");
+
             int di = DealerIndex(dealerUpCard);
             if (di < 0 || di > 9) return new Advice("WAIT");
 

@@ -298,6 +298,28 @@ static class Program
         Eq("Reset beendet die Suche", false, w.SeekingSeat);
     }
 
+    // ───────────────────── Beendete Hand ─────────────────────
+
+    static void BustTests()
+    {
+        var a = new StrategyAdvisor();
+        var r = new RuleSet();
+
+        // Ueber 21 faellt die Suche sonst hinten aus der Tabelle heraus und landet
+        // bei "ab 17 wird gestanden" - das Overlay riet dann STAND bei 23.
+        for (int total = 22; total <= 30; total++)
+            for (int up = 1; up <= 13; up++)
+                Eq2("ueberkauft gibt keinen Rat (" + total + " vs " + up + ")", "BUST",
+                    a.Advise(total, up, false, false, false, false, false, 0f, r).Action);
+        _passed++;
+
+        // 21 ist noch eine Hand und wird normal behandelt
+        Eq("21 steht", "STAND", a.Advise(21, 10, false, false, false, false, false, 0f, r).Action);
+        // Und was der Automat daraus macht, ist nichts - BUST ist keine Aktion
+        Eq("ueberkauft ist keine Spielaktion", true,
+            a.Advise(23, 10, false, false, false, false, false, 0f, r).Action != "STAND");
+    }
+
     // ───────────────────── Einsatz gegen das Guthaben ─────────────────────
 
     static void BankrollTests()
@@ -871,6 +893,7 @@ static class Program
         NoiseFilterTests();
         PerHandBetTests();
         BankrollTests();
+        BustTests();
 
         Console.WriteLine();
         Console.WriteLine($"{_passed} bestanden, {_failed} fehlgeschlagen");
