@@ -7,23 +7,79 @@ using UnityEngine;
 
 namespace BJCCheat
 {
-    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.1.0")]
+    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.0.0")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource Log;
         public static CardCounter Counter = new CardCounter();
         public static StrategyAdvisor Advisor = new StrategyAdvisor();
+        public static RuleSet Rules = new RuleSet();
+
+        /// <summary>
+        /// Can we trust the count? After joining mid-shoe most of the dealt cards were
+        /// never seen, so the running count is off by the unknown net value of everything
+        /// we missed - easily two true counts in either direction.
+        /// </summary>
+        public static bool CountIsReliable()
+        {
+            return !Counter.JoinedMidShoe;
+        }
+
+        /// <summary>
+        /// True count for betting and playing decisions. Zero while the count is not
+        /// trustworthy: no spreading, no deviations, plain basic strategy.
+        /// </summary>
+        public static float EffectiveTrueCount()
+        {
+            if (!CountIsReliable()) return 0f;
+            return Counter.TrueCount(NumDecks);
+        }
+
+        public enum SitOut
+        {
+            No,
+            /// <summary>Count is good and says the shoe belongs to the house.</summary>
+            BadShoe,
+            /// <summary>Joined mid-shoe - the correct move is to wait out the shuffle.</summary>
+            UnreliableCount
+        }
+
+        /// <summary>
+        /// Single source of truth for wonging, used by the bot and by the overlay so
+        /// they can never disagree. An untrustworthy count is itself a reason to sit
+        /// out: that is exactly the situation this feature exists for.
+        /// </summary>
+        public static SitOut ShouldSitOutNow()
+        {
+            if (!WongingEnabled) return SitOut.No;
+            if (!CardCounter.ShouldSitOut(EffectiveTrueCount(), CountIsReliable())) return SitOut.No;
+            return CountIsReliable() ? SitOut.BadShoe : SitOut.UnreliableCount;
+        }
+
+        /// <summary>Counter state for the log, so a suppressed count is never silent.</summary>
+        public static string CountDebug()
+        {
+            return $"RC={Counter.RunningCount:+0;-0;0}, seen={Counter.CardsSeen}/{Counter.CardsDealt}"
+                 + (CountIsReliable() ? "" : ", UNRELIABLE (joined mid-shoe)");
+        }
 
         public static bool ShowOverlay = true;
         public static bool AutoPlayEnabled = false;
         public static bool AutoBetEnabled = false;
+        public static bool WongingEnabled = false;
+        public static bool AutoRejoinEnabled = true;
         public static bool SpeedHack = false;
+
+        /// <summary>Stage code of the last table we played, for rejoining after it ends.</summary>
+        public static string LastStageCode = null;
 
         public static string PlayState = "";
         public static int DealerUpCard = 0;
         public static int PlayerScore = 0;
         public static bool PlayerSoft = false;
         public static bool PlayerPair = false;
+        /// <summary>Hand sequence of the hand being advised, 0 when there is no split.</summary>
+        public static int HandSeq = 0;
         public static bool CanSplit = false;
         public static bool CanDouble = false;
         public static bool CanSurrender = false;
@@ -39,6 +95,9 @@ namespace BJCCheat
         {
             Log = Logger;
             Log.LogInfo("BJC Cheat Suite Awake!");
+
+            // Start in the player's own language; F7 switches at any time
+            Lang.Current = Application.systemLanguage == SystemLanguage.German ? "de" : "en";
 
             // Create our OWN persistent GameObject that survives scene loads
             var go = new GameObject("BJCCheat_Overlay");
@@ -110,6 +169,10 @@ namespace BJCCheat
                 if (Input.GetKeyDown(KeyCode.F4))
                     SetSpeedHack(!Plugin.SpeedHack);
                 if (Input.GetKeyDown(KeyCode.F5))
+                    Plugin.WongingEnabled = !Plugin.WongingEnabled;
+                if (Input.GetKeyDown(KeyCode.F6))
+                    Plugin.AutoRejoinEnabled = !Plugin.AutoRejoinEnabled;
+                if (Input.GetKeyDown(KeyCode.F7))
                     Lang.Toggle();
 
                 // Auto-play: poll active table for pending turns every frame
@@ -118,7 +181,11 @@ namespace BJCCheat
 
                 // Auto-bet: poll for BET phase
                 if (Plugin.AutoBetEnabled && Plugin.AutoPlayEnabled)
+                {
                     ActiveTable.PollAutoBet();
+                    ActiveTable.PollWongReentry();
+                    ActiveTable.PollAutoRejoin();
+                }
             }
             catch (Exception ex)
             {
@@ -142,8 +209,14 @@ namespace BJCCheat
 
                 GUI.depth = -1000;
                 GUI.color = Color.green;
-                GUI.Label(new Rect(10, Screen.height - 28, 900, 25), Lang.T("hotbar"));
+                GUI.Label(new Rect(10, Screen.height - 28, 1100, 25), Lang.T("hotbar"));
                 GUI.color = Color.white;
+
+                // Height back to zero every frame: GUILayout grows a window to fit its
+                // content but never shrinks below the height handed in, so collapsing a
+                // section would otherwise leave the freed space as a black block.
+                _adviceRect.height = 0;
+                _menuRect.height = 0;
 
                 // Titles are drawn inside the windows (DrawTitle), centred in the title band
                 if (Plugin.ShowOverlay)
@@ -261,6 +334,11 @@ namespace BJCCheat
             Header(Lang.T("controls"));
             Plugin.AutoPlayEnabled = GUILayout.Toggle(Plugin.AutoPlayEnabled, Lang.T("autoplay"));
             Plugin.AutoBetEnabled = GUILayout.Toggle(Plugin.AutoBetEnabled, Lang.T("autobet"));
+            Plugin.WongingEnabled = GUILayout.Toggle(Plugin.WongingEnabled,
+                Lang.T("wong_toggle", CardCounter.WongOutTrueCount));
+            Plugin.AutoRejoinEnabled = GUILayout.Toggle(Plugin.AutoRejoinEnabled,
+                Lang.T("rejoin_toggle")
+                + (string.IsNullOrEmpty(Plugin.LastStageCode) ? "" : $"  ({Plugin.LastStageCode})"));
             bool speed = GUILayout.Toggle(Plugin.SpeedHack, Lang.T("speedhack"));
             if (speed != Plugin.SpeedHack)
                 SetSpeedHack(speed);
@@ -272,7 +350,51 @@ namespace BJCCheat
                 Lang.Toggle();
             GUILayout.EndHorizontal();
 
+            GUILayout.Space(8);
+            DrawSessionStats();
+
             GUI.DragWindow();
+        }
+
+        // ── Session: is the edge working, or was that a good run? ──
+
+        void DrawSessionStats()
+        {
+            Header(Lang.T("session_title"));
+
+            if (SessionStats.RoundsPlayed == 0)
+            {
+                GUILayout.Label(Lang.T("session_empty"), _center);
+                return;
+            }
+
+            long net = SessionStats.NetResult;
+            Colored((net >= 0 ? "+" : "") + $"{net:N0}", _big, net >= 0 ? Color.green : Bad);
+            GUILayout.Label(Lang.T("session_rounds", SessionStats.RoundsPlayed, SessionStats.RoundsSatOut), _center);
+            GUILayout.Label(Lang.T("session_wagered", SessionStats.TotalWagered, SessionStats.RoundsPerHour), _center);
+
+            GUILayout.Space(4);
+            GUILayout.Label(Lang.T("session_edge", SessionStats.RealisedEdgePercent), _center);
+            Colored(Lang.T("session_expected", SessionStats.Expected, SessionStats.StdDev), _center, Muted);
+
+            GUILayout.Space(4);
+            double sigma = SessionStats.Sigma;
+            Color verdictColor = Math.Abs(sigma) > 2 ? Orange : Muted;
+            Colored(Lang.T("session_sigma", sigma), _center, verdictColor);
+            Colored(SessionStats.Verdict, _wrap, verdictColor);
+
+            if (SessionStats.RoundsPlayed < SessionStats.RoundsForCertainty)
+            {
+                // This is how blackjack is, not a quirk of this session: the edge is tiny
+                // next to the swing, so it takes a lot of rounds to show through.
+                double h = SessionStats.HoursForCertainty;
+                string pace = h > 0 ? Lang.T("session_horizon_pace", h) : "";
+                Colored(Lang.T("session_horizon", SessionStats.RoundsForCertainty, pace), _wrap, Muted);
+            }
+
+            GUILayout.Space(4);
+            if (GUILayout.Button(Lang.T("session_reset")))
+                SessionStats.Reset();
         }
 
         void DrawCounter()
@@ -284,24 +406,47 @@ namespace BJCCheat
             Header(Lang.T("counter_title"));
 
             // Verdict in plain words: is the rest of the shoe good for you?
-            if (tc >= 2) Colored(Lang.T("good_for_you"), _big, Color.green);
-            else if (tc > -1) Colored(Lang.T("neutral"), _big, Color.yellow);
-            else Colored(Lang.T("bad_for_you"), _big, Bad);
+            // While the count cannot be trusted we say so instead of showing a number
+            // the bot is deliberately ignoring.
+            if (!Plugin.CountIsReliable())
+            {
+                Colored(Lang.T("count_unreliable"), _big, Orange);
+                GUILayout.Label(Lang.T("count_unreliable_raw", tc), _center);
+            }
+            else
+            {
+                if (tc >= 2) Colored(Lang.T("good_for_you"), _big, Color.green);
+                else if (tc > -1) Colored(Lang.T("neutral"), _big, Color.yellow);
+                else Colored(Lang.T("bad_for_you"), _big, Bad);
 
-            string edgeText = edge >= 0.05f ? Lang.T("your_edge", edge) :
-                              edge <= -0.05f ? Lang.T("house_edge", -edge) : Lang.T("balanced");
-            GUILayout.Label($"True Count {tc:+0.0;-0.0;0.0}  ·  {edgeText}", _center);
+                string edgeText = edge >= 0.05f ? Lang.T("your_edge", edge) :
+                                  edge <= -0.05f ? Lang.T("house_edge", -edge) : Lang.T("balanced");
+                GUILayout.Label($"True Count {tc:+0.0;-0.0;0.0}  ·  {edgeText}", _center);
+            }
 
             // Bet tip: spread in table minimums
             GUILayout.Space(4);
             if (Plugin.BetMin > 0)
             {
-                Colored(Lang.T("bet_tip", BetTip(tc)), _medium, tc >= 1.5f ? Color.green : Color.white);
-                Colored(tc >= CardCounter.MaxBetTrueCount ? Lang.T("bet_max_level") :
-                        tc >= 3 ? Lang.T("bet_16x") :
-                        tc >= 2 ? Lang.T("bet_8x") :
-                        tc >= 1.5f ? Lang.T("bet_1_5x") :
-                        Lang.T("bet_min_level"), _center, Muted);
+                Plugin.SitOut sitOut = Plugin.ShouldSitOutNow();
+                if (sitOut != Plugin.SitOut.No)
+                {
+                    Colored(Lang.T("bet_tip_sit_out"), _medium, Orange);
+                    // The ladder below would contradict this, so say why instead
+                    Colored(sitOut == Plugin.SitOut.UnreliableCount
+                        ? Lang.T("sit_out_unreliable")
+                        : Lang.T("sit_out_bad_shoe", CardCounter.WongInTrueCount), _center, Muted);
+                }
+                else
+                {
+                    Colored(Lang.T("bet_tip", BetTip()), _medium, tc >= 1f ? Color.green : Color.white);
+                    Colored(tc >= CardCounter.MaxBetTrueCount ? Lang.T("bet_max_level") :
+                            tc >= 3 ? Lang.T("bet_16x") :
+                            tc >= 2.5f ? Lang.T("bet_8x") :
+                            tc >= 2 ? Lang.T("bet_4x") :
+                            tc >= 1 ? Lang.T("bet_2x") :
+                            Lang.T("bet_min_level"), _center, Muted);
+                }
             }
             else
             {
@@ -323,7 +468,7 @@ namespace BJCCheat
             Colored(Lang.T("running_count", counter.RunningCount, counter.CardsSeen), _center, Muted);
 
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button(_showCountHelp ? Lang.T("close_explanation") : Lang.T("how_it_works")))
+            if (GUILayout.Button(Lang.T(_showCountHelp ? "close_explanation" : "how_it_works")))
                 _showCountHelp = !_showCountHelp;
             if (GUILayout.Button(Lang.T("reset_count")))
                 counter.Reset();
@@ -338,6 +483,8 @@ namespace BJCCheat
                 GUILayout.Label(Lang.T("help5", StrategyAdvisor.InsuranceTrueCount), _wrap);
                 GUILayout.Label(Lang.T("help6"), _wrap);
                 GUILayout.Label(Lang.T("help7"), _wrap);
+                GUILayout.Label(Lang.T("help8", Plugin.Rules.DealerRuleText), _wrap);
+                GUILayout.Label(Lang.T("help9", CardCounter.WongOutTrueCount, CardCounter.WongInTrueCount), _wrap);
             }
         }
 
@@ -346,7 +493,7 @@ namespace BJCCheat
         void DrawAdvice(int id)
         {
             DrawTitle(Lang.T("title_strategy"));
-            float tc = Plugin.Counter.TrueCount(Plugin.NumDecks);
+            float tc = Plugin.EffectiveTrueCount();
 
             if (Plugin.PlayState == "BET")
                 DrawBetAdvice(tc);
@@ -360,10 +507,38 @@ namespace BJCCheat
 
         void DrawBetAdvice(float tc)
         {
-            long bet = BetTip(tc);
+            Plugin.SitOut sitOut = Plugin.ShouldSitOutNow();
+
+            if (ActiveTable.WongedOut)
+            {
+                Colored(Lang.T("waiting_outside"), _big, Orange);
+                Colored(sitOut == Plugin.SitOut.UnreliableCount
+                    ? Lang.T("waiting_outside_unreliable")
+                    : Lang.T("waiting_outside_count", tc, CardCounter.WongInTrueCount), _center, Muted);
+                return;
+            }
+
+            if (sitOut != Plugin.SitOut.No)
+            {
+                if (ActiveTable.SkippedRounds < CardCounter.MaxSkippedRoundsInARow)
+                {
+                    Colored(Lang.T("sit_out"), _big, Orange);
+                    Colored(sitOut == Plugin.SitOut.UnreliableCount
+                        ? Lang.T("sit_out_unreliable")
+                        : Lang.T("sit_out_bad_shoe", CardCounter.WongInTrueCount), _center, Muted);
+                }
+                else
+                {
+                    Colored(Lang.T("set_bet", Plugin.BetMin), _big, Color.white);
+                    Colored(Lang.T("forced_min"), _center, Muted);
+                }
+                return;
+            }
+
+            long bet = BetTip();
             string level = tc >= CardCounter.MaxBetTrueCount ? Lang.T("table_max") :
-                           tc >= 1.5f ? $"{CardCounter.SpreadUnits(tc):0.#}× Min" : "Min";
-            Colored(bet > 0 ? Lang.T("set_bet", bet) : Lang.T("set_minimum"), _big, tc >= 1.5f ? Color.green : Color.white);
+                           tc >= 1f ? $"{CardCounter.SpreadUnits(tc):0.#}× {Lang.T("minimum_word")}" : Lang.T("minimum_word");
+            Colored(bet > 0 ? Lang.T("set_bet", bet) : Lang.T("set_minimum"), _big, tc >= 1f ? Color.green : Color.white);
             Colored($"{level} · True Count {tc:+0.0;-0.0;0.0}", _center, Muted);
         }
 
@@ -371,8 +546,8 @@ namespace BJCCheat
         {
             bool insure = Plugin.Advisor.ShouldInsure(tc);
             // With a blackjack the game offers even money instead; same rule
-            string what = Plugin.PlayerScore == 21 ? Lang.T("even_money") : Lang.T("insurance");
-            Colored($"{what}: {(insure ? Lang.T("yes") : Lang.T("no"))}", _big, insure ? Color.green : Bad);
+            string what = Lang.T(Plugin.PlayerScore == 21 ? "even_money" : "insurance");
+            Colored($"{what}: {Lang.T(insure ? "yes" : "no")}", _big, insure ? Color.green : Bad);
             Colored(insure
                 ? Lang.T("insurance_yes_hint", tc)
                 : Lang.T("insurance_no_hint", tc, StrategyAdvisor.InsuranceTrueCount), _center, Muted);
@@ -380,15 +555,26 @@ namespace BJCCheat
 
         void DrawPlayAdvice()
         {
-            string advice = Plugin.Advisor.GetAdvice(
+            Advice a = Plugin.Advisor.Advise(
                 Plugin.PlayerScore, Plugin.DealerUpCard, Plugin.PlayerSoft, Plugin.PlayerPair,
-                Plugin.CanSplit, Plugin.CanDouble, Plugin.CanSurrender);
+                Plugin.CanSplit, Plugin.CanDouble, Plugin.CanSurrender,
+                Plugin.EffectiveTrueCount(), Plugin.Rules);
 
-            Colored(advice == "WAIT" ? Lang.T("wait") : advice, _big, ActionColor(advice));
-            Colored(ActionHint(advice), _center, Muted);
+            Colored(a.Action == "WAIT" ? Lang.T("wait") : a.Action, _big, ActionColor(a.Action));
+            Colored(ActionHint(a.Action), _center, Muted);
+
+            // Why we are leaving the basic-strategy chart
+            if (!string.IsNullOrEmpty(a.Reason))
+                Colored(a.Reason, _center, a.IsDeviation ? Gold : Muted);
 
             if (Plugin.PlayerScore > 0)
-                GUILayout.Label(Lang.T("you_vs_dealer", Plugin.PlayerScore, Plugin.PlayerSoft ? " soft" : "", RankName(Plugin.DealerUpCard)), _center);
+            {
+                // Name the hand after a split, otherwise it is guesswork which one is meant
+                string hand = ActiveTable.LocalHands > 1 && Plugin.HandSeq > 0
+                    ? Lang.T("hand_label", Plugin.HandSeq) : Lang.T("you_label");
+                GUILayout.Label(Lang.T("hand_vs_dealer", hand, Plugin.PlayerScore,
+                    Plugin.PlayerSoft ? " soft" : "", RankName(Plugin.DealerUpCard)), _center);
+            }
         }
 
         static Color ActionColor(string advice)
@@ -424,9 +610,10 @@ namespace BJCCheat
             return rank >= 10 ? "10" : rank.ToString();
         }
 
-        static long BetTip(float trueCount)
+        static long BetTip()
         {
-            return CardCounter.RecommendedBet(trueCount, Plugin.Stack, Plugin.BetMin, Plugin.BetMax, Plugin.BetStep);
+            return CardCounter.RecommendedBet(Plugin.EffectiveTrueCount(),
+                Plugin.Stack, Plugin.BetMin, Plugin.BetMax, Plugin.BetStep);
         }
 
         // ── Drawing helpers ──

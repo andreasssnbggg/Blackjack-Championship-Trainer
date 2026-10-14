@@ -6,11 +6,11 @@
 [![BepInEx 5.4 x86](https://img.shields.io/badge/BepInEx-5.4.x%20x86-blue)](https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.2)
 [![Unity 2022.3 Mono](https://img.shields.io/badge/Unity-2022.3%20Mono-lightgrey)](#technical-notes)
 
-A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-Lo card counter**, a **perfect basic strategy advisor** and optional **auto-play**, all in an in-game overlay (plugin name: *BJC Cheat Suite*).
+A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-Lo card counter**, a **strategy advisor with count deviations**, **back-counting**, **session statistics** and optional **auto-play**, all in an in-game overlay (plugin name: *BJC Cheat Suite*).
 
-> 🇬🇧 / 🇩🇪 The overlay supports **English** and **German**. Toggle with **F5** or via the menu.
+> 🇬🇧 / 🇩🇪 The overlay supports **English** and **German**. It starts in your system language; toggle with **F7** or via the menu.
 
-<p align="center"><img src="docs/overlay.png" alt="In-game overlay (German UI)" width="360"></p>
+<p align="center"><img src="docs/overlay.png" alt="In-game overlay: strategy window, card counter, controls and session statistics (German UI)" width="380"></p>
 
 > [!WARNING]
 > **Use at your own risk.** Blackjack Championship is an online, server-authoritative game. Automation tools very likely violate the game's Terms of Service and **can get your account banned**. This project is not affiliated with or endorsed by the game's developers. It is provided for educational purposes. You are responsible for how you use it.
@@ -27,7 +27,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | | |
 |---|---|
 | **Tested with** | Blackjack Championship (Steam App ID 1178160), October 2026 build |
-| **Mod version** | 1.1.0 |
+| **Mod version** | 1.2.0 |
 | **Requires** | BepInEx 5.4.x **32-bit (x86)** |
 
 ---
@@ -37,12 +37,16 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | Feature | Description |
 |---|---|
 | **Card Counter** | Hi-Lo counting system with true count, running count, shoe progress, and player edge % |
-| **Strategy Advisor** | Perfect basic strategy for 4–8 deck, S17, DAS, late surrender. Shows optimal play in real-time |
-| **Bet Advisor** | Recommends bet size based on true count (1×–16× minimum, up to table max) |
+| **Strategy Advisor** | Basic strategy for 4–8 decks, DAS, late surrender — **plus the Hi-Lo count deviations** (Illustrious 18 and Fab 4). Every departure from the chart is shown with its reason |
+| **Dealer Rule Detection** | Watches finished dealer hands and works out whether the table is **H17 or S17**, then switches the chart over by itself |
+| **Bet Advisor** | Bet spread from the true count (1× / 2× / 4× / 8× / 16× minimum, table max from +4) |
+| **Back-Counting** | Optional: sits out bad shoes. The server takes your seat, counting continues from the side, and it takes a free seat again once the shoe turns |
+| **Session Statistics** | Rounds, amount wagered, result — measured against the expectation **and the standard deviation**, so a lucky run can be told apart from an edge |
 | **Insurance Advice** | Take/decline insurance based on true count (≥ +3 = take) |
-| **Auto-Play / Auto-Bet** | Optional: plays basic strategy and places the recommended bet automatically |
+| **Auto-Play / Auto-Bet** | Optional: plays the strategy and places the recommended bet automatically |
+| **Auto-Rejoin** | Optional: when a table dies, looks for a new one of the same stage |
 | **Speed Hack** | 5× game speed via `Time.timeScale` |
-| **Bilingual UI** | Full German/English support, toggle with F5 |
+| **Bilingual UI** | Full German/English support, starts in your system language, toggle with F7 |
 
 ## Keybinds
 
@@ -52,14 +56,16 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | **F2** | Toggle auto-play |
 | **F3** | Toggle auto-bet |
 | **F4** | Toggle speed hack (5×) |
-| **F5** | Toggle language (DE ↔ EN) |
+| **F5** | Toggle sitting out bad shoes (back-counting) |
+| **F6** | Toggle looking for a new table when this one ends |
+| **F7** | Toggle language (DE ↔ EN) |
 
 ## The Overlay
 
 The overlay shows two draggable windows:
 
 - **Strategy window** (top): Shows the current optimal play (HIT / STAND / DOUBLE / SPLIT / SURRENDER), bet recommendation during betting phase, and insurance advice
-- **Menu window** (bottom): Card counter with true count, running count, shoe progress bar, player edge %, bet tips, controls, and an expandable "How does it work?" explanation
+- **Menu window** (bottom): Card counter with true count, running count, shoe progress bar, player edge %, bet tips, controls, session statistics, and an expandable "How does it work?" explanation
 
 Both windows feature an animated glowing frame that shifts through emerald, teal, and gold.
 
@@ -127,10 +133,49 @@ With proper fallbacks: Double→Hit when can't double, Surrender→Hit when can'
 
 | True Count | Bet Size |
 |---|---|
-| < +2 | Table minimum |
-| +2 | 8× minimum |
+| < +1 | Table minimum |
+| +1 | 2× minimum |
+| +2 | 4× minimum |
+| +2.5 | 8× minimum |
 | +3 | 16× minimum |
 | +4+ | Table maximum |
+
+The true count is rounded to one decimal before any threshold is checked, so the number
+the overlay shows is exactly the number that acts.
+
+### Count Deviations
+
+On top of basic strategy the advisor plays the Hi-Lo index plays — the Illustrious 18 and
+the Fab 4 surrenders — for example *stand 16 vs 10 from TC 0*, *double 11 vs A from TC +1*,
+*surrender 15 vs 9 from TC +2*. Splitting tens at a high count is implemented but off by
+default: it is correct and extremely conspicuous.
+
+Deviations are only played when the count can be trusted. After joining a table mid-shoe
+most of the dealt cards were never seen and the running count is off by an unknown amount,
+so the mod falls back to plain basic strategy and the table minimum until the next shuffle
+(or sits the shoe out entirely, if back-counting is on).
+
+### Back-Counting
+
+This game stands you up after a single missed bet, so sitting out means losing the seat.
+That is not a problem but the point: you stay in the room as a spectator, the count keeps
+running, and once the shoe turns the mod takes any free seat again. Thresholds are
+deliberately apart — out below TC −1, back in from TC 0 — so it cannot stand up and sit
+down on every swing. After four skipped rounds in a row it pays one table minimum to hold
+the seat, for tables that tolerate a missed bet.
+
+### Session Statistics
+
+A chip count cannot tell an edge from a lucky run, so the session panel puts the result
+next to both the expectation (1 % of the amount wagered) and the standard deviation of the
+rounds actually played. The verdict is the distance between them: under one standard
+deviation is noise, over two is an outlier. It also states how many rounds a 1 % edge needs
+before it rises clear of chance — about 53,000, which is the honest reason why no single
+session proves anything.
+
+The result is derived from the stack itself (start, minus detected buy-ins) and never from
+a running sum of per-round deltas: summing deltas means every skipped round silently
+deletes its money from the total and the figure drifts away from the real balance for good.
 
 ### Server-Authoritative
 
@@ -149,10 +194,15 @@ It only provides **information** (counting, strategy) and optional **automation*
 src/
 ├── Plugin.cs           # BepInEx plugin entry point + IMGUI overlay
 ├── Lang.cs             # Bilingual string system (DE/EN)
-├── Hooks.cs            # Harmony patches + auto-play/bet/insurance logic
-├── CardCounter.cs      # Hi-Lo counting engine
-├── StrategyAdvisor.cs  # Basic strategy lookup tables
+├── Hooks.cs            # Harmony patches + auto-play/bet/insurance/back-counting logic
+├── CardCounter.cs      # Hi-Lo counting engine, bet spread, wonging thresholds
+├── StrategyAdvisor.cs  # Basic strategy tables, H17 overlay, count deviations
+├── TableRules.cs       # Learns the dealer's soft-17 rule from observed hands
+├── WongState.cs        # Back-counting state machine (sit-out intent vs. seat state)
+├── SessionStats.cs     # Result, expectation, standard deviation
 └── MonoShutdownFix.cs  # Fixes crash-on-exit caused by MonoMod
+
+test/                   # Standalone test suite, runs without the game
 ```
 
 | File | Purpose |
@@ -161,7 +211,10 @@ src/
 | **Lang.cs** | Static localization class. `Dictionary<key, Dictionary<lang, text>>` with `Lang.T("key")` and `Lang.T("key", args)`. Supports `"de"` and `"en"`, toggled with `Lang.Toggle()`. |
 | **Hooks.cs** | `ActiveTable` static class tracks the live `BJTable`, refreshes game state every update, and implements `PollAutoPlay()` / `PollAutoBet()` / `PollAutoInsurance()`. `TableUpdateHook` is the Harmony postfix on `DecodeOnPlayUpdate` and `DecodeOnAction`. |
 | **CardCounter.cs** | Hi-Lo counting engine. Tracks running count, cards seen, shoe progress from server data, true count calculation, player edge estimate, and bet spread recommendations. Handles mid-shoe joins and deduplication of counted cards. |
-| **StrategyAdvisor.cs** | Complete basic strategy lookup tables for hard, soft, and pair hands. Resolves Double/Surrender availability fallbacks. Insurance threshold at True Count +3. |
+| **StrategyAdvisor.cs** | Basic strategy lookup tables for hard, soft, and pair hands, an H17 overlay applied once the dealer rule is known, and the Hi-Lo index plays. Returns the action **and** the reason, so the overlay can show why it left the chart. Resolves Double/Surrender availability fallbacks. Insurance threshold at True Count +3. |
+| **TableRules.cs** | Learns whether the dealer hits or stands on soft 17 by replaying each finished dealer hand card by card. A hand that passes through soft 17 and draws again settles H17 in one observation; the opposite case needs several sightings, because with every player busted the dealer never draws at all. |
+| **WongState.cs** | Keeps the sit-out **intent** apart from the **state** of having no seat. The server takes the seat seconds after the skipped bet, and anything that forgets the intent in between never comes back. |
+| **SessionStats.cs** | Rounds, amount wagered, result, expectation, standard deviation and the resulting verdict. Buy-ins are detected and kept out of the result. |
 | **MonoShutdownFix.cs** | Repairs corrupted `friend_assembly_names` pointer in Mono assembly structs caused by MonoMod 22.01 (shipped with BepInEx 5.4.23). Prevents crash-on-exit in Unity 2022.3 x86. |
 
 ---
@@ -170,8 +223,25 @@ src/
 
 - **Hole card** is not visible: the server sends `"0u"` until the result phase, so the advisor only sees the dealer's up card
 - **Side bets** are not supported by auto-play
-- **Mid-shoe join**: if you sit down at a table mid-shoe, the count starts from zero and shows a warning until the next shuffle
+- **Mid-shoe join**: if you sit down mid-shoe the count cannot be trusted. The overlay says so, bets stay at the minimum and the advisor plays plain basic strategy until the next shuffle
+- **Session statistics** read the seat stack, so they only cover tables you actually sat at
 - The game may update and break hooks. Check `Assembly-CSharp.dll` for API changes
+
+## Tests
+
+The strategy engine, the counter, the bet ladder, the rule detection, the back-counting
+state machine and the statistics are covered by a standalone suite that needs neither the
+game nor BepInEx:
+
+```bash
+cd test
+dotnet run -c Release
+```
+
+It checks the charts cell by cell against the published S17/H17 references, every deviation
+once exactly at its index and once just below it, and the bookkeeping invariant across a
+randomised 400-round session. Blackjack maths cannot be eyeballed — a wrong number in a
+table looks exactly like a right one.
 
 ## Troubleshooting
 

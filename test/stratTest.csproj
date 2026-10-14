@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>stratTest</AssemblyName>
+    <RootNamespace>stratTest</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="RuleStubs.cs" />
+    <Compile Include="..\src\Lang.cs" />
+    <Compile Include="..\src\StrategyAdvisor.cs" />
+    <Compile Include="..\src\TableRules.cs" />
+    <Compile Include="..\src\CardCounter.cs" />
+    <Compile Include="..\src\SessionStats.cs" />
+    <Compile Include="..\src\WongState.cs" />
+  </ItemGroup>
+</Project>

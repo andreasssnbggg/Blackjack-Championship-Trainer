@@ -96,13 +96,19 @@ namespace BJCCheat
         }
 
         /// <summary>
-        /// True count = running count / decks remaining
+        /// True count = running count / decks remaining, rounded to one decimal.
+        ///
+        /// The rounding is deliberate: every threshold in this plugin is written with one
+        /// decimal, and the overlay shows one decimal. Deciding on the raw value meant a
+        /// displayed "+2,0" could really be 1,97 and miss the "4x from +2" step - the
+        /// number you read and the number that acts have to be the same one. The lost
+        /// precision is meaningless anyway next to the uncertainty in the deck estimate.
         /// </summary>
         public float TrueCount(int totalDecks)
         {
             float remaining = DecksRemaining(totalDecks);
             if (remaining < 0.5f) remaining = 0.5f;
-            return RunningCount / remaining;
+            return (float)Math.Round(RunningCount / remaining, 1);
         }
 
         public float DecksRemaining(int totalDecks)
@@ -144,14 +150,63 @@ namespace BJCCheat
         public const float MaxBetTrueCount = 4f;
 
         /// <summary>
-        /// Bet spread in table minimums: 1 below true count +1.5, 1.5 from +1.5, 8 from +2, 16 from +3.
-        /// From +4 the table maximum (see RecommendedBet).
+        /// Wonging: below this true count the shoe belongs to the house, so the best
+        /// bet is no bet. Sitting out the bad shoes is worth more than any chart detail.
+        /// </summary>
+        public const float WongOutTrueCount = -1f;
+
+        /// <summary>
+        /// Come back to the table from this true count up. Deliberately higher than
+        /// WongOutTrueCount: without that dead band we would leave at -1.1 and sit back
+        /// down at -0.9, round after round.
+        /// </summary>
+        public const float WongInTrueCount = 0f;
+
+        /// <summary>
+        /// Fallback for tables that tolerate a missed bet. This game does not - it
+        /// stands you up after a single one - so in practice the seat is gone first
+        /// and we come back through ShouldComeBack instead.
+        /// </summary>
+        public const int MaxSkippedRoundsInARow = 4;
+
+        /// <summary>Pure threshold test on a count we trust.</summary>
+        public static bool ShouldSitOut(float trueCount)
+        {
+            return trueCount < WongOutTrueCount;
+        }
+
+        /// <summary>
+        /// The full wonging rule. An untrustworthy count is itself a reason to sit out -
+        /// joining mid-shoe is the classic "wait for the shuffle" situation, and playing
+        /// on through it was exactly the bug that made this feature look dead.
+        /// </summary>
+        public static bool ShouldSitOut(float trueCount, bool countReliable)
+        {
+            if (!countReliable) return true;
+            return ShouldSitOut(trueCount);
+        }
+
+        /// <summary>
+        /// Worth taking a seat again? Needs a count we trust AND one that is actually
+        /// favourable - not merely "no longer terrible".
+        /// </summary>
+        public static bool ShouldComeBack(float trueCount, bool countReliable)
+        {
+            return countReliable && trueCount >= WongInTrueCount;
+        }
+
+        /// <summary>
+        /// Bet spread in table minimums: 1 / 2 / 4 / 8 / 16, table maximum from +4
+        /// (see RecommendedBet). The old ramp stayed at 1.5x until true count +2 and then
+        /// jumped straight to 8x, so the whole +1..+2 band - where the edge is already
+        /// positive - was played at almost the minimum.
         /// </summary>
         public static float SpreadUnits(float trueCount)
         {
-            if (trueCount >= 3) return 16f;
-            if (trueCount >= 2) return 8f;
-            if (trueCount >= 1.5f) return 1.5f;
+            if (trueCount >= 3f) return 16f;
+            if (trueCount >= 2.5f) return 8f;
+            if (trueCount >= 2f) return 4f;
+            if (trueCount >= 1f) return 2f;
             return 1f;
         }
 

@@ -16,6 +16,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- test\ is a standalone console project for the strategy engine, not part of the plugin -->
+    <Compile Remove="test\**" />
+    <None Remove="test\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="BepInEx">
       <HintPath>$(BepInExDir)\BepInEx.dll</HintPath>
       <Private>false</Private>
@@ -46,6 +52,10 @@
     </Reference>
     <Reference Include="UnityEngine.UIModule">
       <HintPath>$(ManagedDir)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(ManagedDir)\UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">

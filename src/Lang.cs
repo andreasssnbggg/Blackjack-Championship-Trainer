@@ -10,8 +10,8 @@ namespace BJCCheat
         {
             // Bottom bar
             {"hotbar", new Dictionary<string, string> {
-                {"de", "[BJC] F1 = Menü · F2 = Auto-Play · F3 = Auto-Bet · F4 = Speed"},
-                {"en", "[BJC] F1 = Menu · F2 = Auto-Play · F3 = Auto-Bet · F4 = Speed"}
+                {"de", "[BJC] F1 = Menü · F2 = Auto-Play · F3 = Auto-Bet · F4 = Speed · F5 = Aussetzen · F6 = Neuer Tisch · F7 = Sprache"},
+                {"en", "[BJC] F1 = Menu · F2 = Auto-Play · F3 = Auto-Bet · F4 = Speed · F5 = Sit out · F6 = New table · F7 = Language"}
             }},
             // Window titles
             {"title_suite", new Dictionary<string, string> {
@@ -90,13 +90,17 @@ namespace BJCCheat
                 {"de", "8× Minimum · 16× ab True Count +3"},
                 {"en", "8× minimum · 16× from True Count +3"}
             }},
-            {"bet_1_5x", new Dictionary<string, string> {
-                {"de", "1,5× Minimum · 8× ab True Count +2"},
-                {"en", "1.5× minimum · 8× from True Count +2"}
+            {"bet_4x", new Dictionary<string, string> {
+                {"de", "4× Minimum · 8× ab True Count +2,5"},
+                {"en", "4× minimum · 8× from True Count +2.5"}
+            }},
+            {"bet_2x", new Dictionary<string, string> {
+                {"de", "2× Minimum · 4× ab True Count +2"},
+                {"en", "2× minimum · 4× from True Count +2"}
             }},
             {"bet_min_level", new Dictionary<string, string> {
-                {"de", "Tischminimum · 1,5× ab True Count +1,5"},
-                {"en", "Table minimum · 1.5× from True Count +1.5"}
+                {"de", "Tischminimum · 2× ab True Count +1"},
+                {"en", "Table minimum · 2× from True Count +1"}
             }},
             {"bet_waiting", new Dictionary<string, string> {
                 {"de", "Einsatz-Tipp: wartet auf Tischdaten …"},
@@ -108,8 +112,8 @@ namespace BJCCheat
                 {"en", "Shoe {0:P0} dealt · {1:0.0} decks remaining"}
             }},
             {"joined_mid_shoe", new Dictionary<string, string> {
-                {"de", "Mitten im Schuh eingestiegen – die Zählung ist erst nach dem nächsten Mischen verlässlich."},
-                {"en", "Joined mid-shoe – the count is only reliable after the next shuffle."}
+                {"de", "Mitten im Schuh eingestiegen – zu viele Karten sind ungesehen vorbei. Bis zum nächsten Mischen wird nur Minimum gesetzt und nach Grundstrategie gespielt; mit [F5] wird stattdessen ausgesetzt."},
+                {"en", "Joined mid-shoe – too many cards went by unseen. Until the next shuffle it bets the minimum and plays plain basic strategy; with [F5] it sits out instead."}
             }},
             {"running_count", new Dictionary<string, string> {
                 {"de", "Running Count {0:+0;-0;0}  ·  {1} Karten gezählt"},
@@ -150,8 +154,16 @@ namespace BJCCheat
                 {"en", "• Insurance only from True Count +{0:0}, otherwise never."}
             }},
             {"help6", new Dictionary<string, string> {
-                {"de", "• Einsatz-Tipp: True Count unter +2 → Minimum, +2 → 8×, +3 → 16× Minimum, ab +4 → Tischmaximum."},
-                {"en", "• Bet tip: True Count below +1.5 → minimum, +1.5 → 1.5×, +2 → 8×, +3 → 16× minimum, +4+ → table max."}
+                {"de", "• Einsatz-Tipp: True Count unter +1 → Minimum, +1 → 2×, +2 → 4×, +2,5 → 8×, +3 → 16× Minimum, ab +4 → Tischmaximum."},
+                {"en", "• Bet tip: True Count below +1 → minimum, +1 → 2×, +2 → 4×, +2.5 → 8×, +3 → 16× minimum, +4+ → table max."}
+            }},
+            {"help8", new Dictionary<string, string> {
+                {"de", "• {0}. Die Strategie stellt sich automatisch um, sobald es feststeht."},
+                {"en", "• {0}. The strategy switches over automatically once it is established."}
+            }},
+            {"help9", new Dictionary<string, string> {
+                {"de", "• Aussetzen [F5]: unter True Count {0:+0.#;-0.#;0} wird nicht gesetzt – und ebenso, solange die Zählung nach einem Einstieg mitten im Schuh unzuverlässig ist. Du wirst dabei vom Platz gestellt, zählst aber weiter mit und setzt dich ab True Count {1:+0.#;-0.#;0} wieder hin."},
+                {"en", "• Sit out [F5]: below True Count {0:+0.#;-0.#;0} no bet is placed – same while the count is unreliable after joining mid-shoe. The server takes your seat, but counting continues and it sits back down from True Count {1:+0.#;-0.#;0}."}
             }},
             {"help7", new Dictionary<string, string> {
                 {"de", "• Beim Mischen und beim Tischwechsel startet die Zählung automatisch neu."},
@@ -227,6 +239,188 @@ namespace BJCCheat
             {"you_vs_dealer", new Dictionary<string, string> {
                 {"de", "Du: {0}{1}  ·  Dealer: {2}"},
                 {"en", "You: {0}{1}  ·  Dealer: {2}"}
+            }},
+            // -- Wonging / sitting out --
+            {"wong_toggle", new Dictionary<string, string> {
+                {"de", "  Schlechte Schuhe aussetzen [F5]  (ab TC {0:+0.#;-0.#;0})"},
+                {"en", "  Sit out bad shoes [F5]  (from TC {0:+0.#;-0.#;0})"}
+            }},
+            {"rejoin_toggle", new Dictionary<string, string> {
+                {"de", "  Nach Tischende neuen Tisch suchen [F6]"},
+                {"en", "  Find a new table when this one ends [F6]"}
+            }},
+            {"sit_out", new Dictionary<string, string> {
+                {"de", "AUSSETZEN"},
+                {"en", "SIT OUT"}
+            }},
+            {"sit_out_unreliable", new Dictionary<string, string> {
+                {"de", "Zählung unzuverlässig · zurück nach dem Mischen"},
+                {"en", "Count unreliable · back after the shuffle"}
+            }},
+            {"sit_out_bad_shoe", new Dictionary<string, string> {
+                {"de", "Schuh gehört der Bank · zurück ab True Count {0:+0.#;-0.#;0}"},
+                {"en", "Shoe belongs to the house · back from True Count {0:+0.#;-0.#;0}"}
+            }},
+            {"bet_tip_sit_out", new Dictionary<string, string> {
+                {"de", "Einsatz-Tipp: aussetzen"},
+                {"en", "Bet tip: sit out"}
+            }},
+            {"forced_min", new Dictionary<string, string> {
+                {"de", "Pflichtrunde: Minimum, damit der Platz nicht verfällt"},
+                {"en", "Forced round: minimum, so the seat is not lost"}
+            }},
+            {"waiting_outside", new Dictionary<string, string> {
+                {"de", "WARTE NEBEN DEM TISCH"},
+                {"en", "WAITING BESIDE THE TABLE"}
+            }},
+            {"waiting_outside_unreliable", new Dictionary<string, string> {
+                {"de", "Zählung noch unzuverlässig - zurück nach dem Mischen"},
+                {"en", "Count still unreliable - back after the shuffle"}
+            }},
+            {"waiting_outside_count", new Dictionary<string, string> {
+                {"de", "True Count {0:+0.0;-0.0;0.0} · zurück ab {1:+0.#;-0.#;0}"},
+                {"en", "True Count {0:+0.0;-0.0;0.0} · back from {1:+0.#;-0.#;0}"}
+            }},
+            // -- Count reliability --
+            {"count_unreliable", new Dictionary<string, string> {
+                {"de", "ZÄHLUNG UNZUVERLÄSSIG"},
+                {"en", "COUNT UNRELIABLE"}
+            }},
+            {"count_unreliable_raw", new Dictionary<string, string> {
+                {"de", "roher True Count {0:+0.0;-0.0;0.0} - wird nicht verwendet"},
+                {"en", "raw True Count {0:+0.0;-0.0;0.0} - not used"}
+            }},
+            // -- Dealer rule detection --
+            {"rule_unknown", new Dictionary<string, string> {
+                {"de", "Dealer soft 17: wird noch beobachtet"},
+                {"en", "Dealer soft 17: still watching"}
+            }},
+            {"rule_h17", new Dictionary<string, string> {
+                {"de", "Dealer zieht bei soft 17 (H17)"},
+                {"en", "Dealer hits soft 17 (H17)"}
+            }},
+            {"rule_s17", new Dictionary<string, string> {
+                {"de", "Dealer bleibt bei soft 17 (S17)"},
+                {"en", "Dealer stands on soft 17 (S17)"}
+            }},
+            // -- Strategy deviations (Illustrious 18 / Fab 4 / H17) --
+            {"dev_stand", new Dictionary<string, string> {
+                {"de", "Abweichung: {0} gegen {1} ab TC {2:+0.#;-0.#;0} stehen"},
+                {"en", "Deviation: stand {0} vs {1} from TC {2:+0.#;-0.#;0}"}
+            }},
+            {"dev_hit", new Dictionary<string, string> {
+                {"de", "Abweichung: {0} gegen {1} ab TC {2:+0.#;-0.#;0} ziehen"},
+                {"en", "Deviation: hit {0} vs {1} from TC {2:+0.#;-0.#;0}"}
+            }},
+            {"dev_hit_below", new Dictionary<string, string> {
+                {"de", "Abweichung: {0} gegen {1} unter TC {2:+0.#;-0.#;0} ziehen"},
+                {"en", "Deviation: hit {0} vs {1} below TC {2:+0.#;-0.#;0}"}
+            }},
+            {"dev_double", new Dictionary<string, string> {
+                {"de", "Abweichung: {0} gegen {1} ab TC {2:+0.#;-0.#;0} verdoppeln"},
+                {"en", "Deviation: double {0} vs {1} from TC {2:+0.#;-0.#;0}"}
+            }},
+            {"dev_surrender", new Dictionary<string, string> {
+                {"de", "Abweichung: {0} gegen {1} ab TC {2:+0.#;-0.#;0} aufgeben"},
+                {"en", "Deviation: surrender {0} vs {1} from TC {2:+0.#;-0.#;0}"}
+            }},
+            {"dev_split", new Dictionary<string, string> {
+                {"de", "Abweichung: {0},{0} gegen {1} ab TC {2:+0.#;-0.#;0} teilen"},
+                {"en", "Deviation: split {0},{0} vs {1} from TC {2:+0.#;-0.#;0}"}
+            }},
+            {"h17_double", new Dictionary<string, string> {
+                {"de", "H17: {0} gegen {1} verdoppeln"},
+                {"en", "H17: double {0} vs {1}"}
+            }},
+            {"h17_surrender", new Dictionary<string, string> {
+                {"de", "H17: {0} gegen {1} aufgeben"},
+                {"en", "H17: surrender {0} vs {1}"}
+            }},
+            {"card_ace", new Dictionary<string, string> {
+                {"de", "Ass"},
+                {"en", "Ace"}
+            }},
+            // -- Session statistics --
+            {"session_title", new Dictionary<string, string> {
+                {"de", "── SITZUNG ──"},
+                {"en", "── SESSION ──"}
+            }},
+            {"session_empty", new Dictionary<string, string> {
+                {"de", "Noch keine gewertete Runde."},
+                {"en", "No round counted yet."}
+            }},
+            {"session_rounds", new Dictionary<string, string> {
+                {"de", "{0} Runden gespielt · {1} ausgesetzt"},
+                {"en", "{0} rounds played · {1} sat out"}
+            }},
+            {"session_wagered", new Dictionary<string, string> {
+                {"de", "Gesamteinsatz {0:N0}  ·  {1:0} Runden/h"},
+                {"en", "Total wagered {0:N0}  ·  {1:0} rounds/h"}
+            }},
+            {"session_edge", new Dictionary<string, string> {
+                {"de", "Dein Schnitt: {0:+0.0;-0.0;0.0} % vom Einsatz"},
+                {"en", "Your return: {0:+0.0;-0.0;0.0} % of amount wagered"}
+            }},
+            {"session_expected", new Dictionary<string, string> {
+                {"de", "Erwartet wären {0:N0} (±{1:N0} Schwankung)"},
+                {"en", "Expected would be {0:N0} (±{1:N0} swing)"}
+            }},
+            {"session_sigma", new Dictionary<string, string> {
+                {"de", "{0:+0.0;-0.0;0.0} Standardabweichungen"},
+                {"en", "{0:+0.0;-0.0;0.0} standard deviations"}
+            }},
+            {"session_reset", new Dictionary<string, string> {
+                {"de", "Statistik zurücksetzen"},
+                {"en", "Reset statistics"}
+            }},
+            {"session_horizon", new Dictionary<string, string> {
+                {"de", "Ein Vorteil von 1 % hebt sich erst nach etwa {0:N0} Runden sicher vom Zufall ab{1}. Bis dahin sagt das Ergebnis wenig."},
+                {"en", "A 1 % edge only rises clear of chance after about {0:N0} rounds{1}. Until then the result says little."}
+            }},
+            {"session_horizon_pace", new Dictionary<string, string> {
+                {"de", " - bei deinem Tempo rund {0:N0} Stunden"},
+                {"en", " - at your pace about {0:N0} hours"}
+            }},
+            {"verdict_too_few", new Dictionary<string, string> {
+                {"de", "Noch viel zu wenige Runden für eine Aussage."},
+                {"en", "Far too few rounds to tell anything yet."}
+            }},
+            {"verdict_way_above", new Dictionary<string, string> {
+                {"de", "Weit über der Erwartung - das ist eine Glückssträhne, kein Dauerzustand."},
+                {"en", "Far above expectation - that is a lucky run, not a steady state."}
+            }},
+            {"verdict_above", new Dictionary<string, string> {
+                {"de", "Über der Erwartung, aber noch im Bereich des Zufalls."},
+                {"en", "Above expectation, but still within the range of chance."}
+            }},
+            {"verdict_way_below", new Dictionary<string, string> {
+                {"de", "Weit unter der Erwartung - Pechsträhne, nicht unbedingt ein Fehler im System."},
+                {"en", "Far below expectation - a bad run, not necessarily a flaw in the system."}
+            }},
+            {"verdict_below", new Dictionary<string, string> {
+                {"de", "Unter der Erwartung, aber noch im Bereich des Zufalls."},
+                {"en", "Below expectation, but still within the range of chance."}
+            }},
+            {"verdict_normal", new Dictionary<string, string> {
+                {"de", "Genau im Rahmen des Zufalls - so sieht es normal aus."},
+                {"en", "Right within the range of chance - this is what normal looks like."}
+            }},
+            // -- Split hands --
+            {"hand_label", new Dictionary<string, string> {
+                {"de", "Hand {0}: "},
+                {"en", "Hand {0}: "}
+            }},
+            {"you_label", new Dictionary<string, string> {
+                {"de", "Du: "},
+                {"en", "You: "}
+            }},
+            {"hand_vs_dealer", new Dictionary<string, string> {
+                {"de", "{0}{1}{2}  ·  Dealer: {3}"},
+                {"en", "{0}{1}{2}  ·  Dealer: {3}"}
+            }},
+            {"minimum_word", new Dictionary<string, string> {
+                {"de", "Minimum"},
+                {"en", "minimum"}
             }},
         };
 
