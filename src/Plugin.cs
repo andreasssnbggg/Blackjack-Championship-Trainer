@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace BJCCheat
 {
-    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.0.0")]
+    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.2.1")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource Log;
