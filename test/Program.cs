@@ -234,6 +234,59 @@ static class Program
         w.Reset();
         Eq("Reset loescht die Absicht", false, w.SitOutIntent);
         Eq("Reset loescht den Zustand", false, w.IsOutside);
+
+        // ── Platzsuche: einmal entschieden, bleibt entschieden ──
+        // Der gemeldete Fehler: Tisch voll, Schuh dreht, waehrend des Wartens faellt
+        // der Count kurz unter die Linie - genau dann wird ein Platz frei und der Bot
+        // laesst ihn liegen. Die Absicht muss den Durchhaenger ueberleben.
+        w = new WongState();
+        w.SkippedBet();
+        w.ObserveNoSeat();
+        Eq("sucht noch keinen Platz", false, w.SeekingSeat);
+        Eq("Platzsuche wird einmal gemeldet", true, w.WantSeat());
+        Eq("Platzsuche meldet sich nicht nochmal", false, w.WantSeat());
+        Eq("sucht jetzt einen Platz", true, w.SeekingSeat);
+        Eq("steht dabei weiter draussen", true, w.IsOutside);
+
+        // Rundenlang kein freier Platz - die Suche laeuft weiter
+        for (int i = 0; i < 50; i++)
+            Eq("Suche ueberlebt das Warten", true, w.SeekingSeat);
+
+        // Erst ein wirklich schlechter Schuh beendet sie
+        Eq("Abbruch wird einmal gemeldet", true, w.StopSeeking());
+        Eq("Abbruch meldet sich nicht nochmal", false, w.StopSeeking());
+        Eq("sucht nicht mehr", false, w.SeekingSeat);
+        Eq("steht aber weiter draussen", true, w.IsOutside);
+
+        // ... und danach geht die Suche wieder los
+        Eq("neue Suche moeglich", true, w.WantSeat());
+        Eq("sucht wieder", true, w.SeekingSeat);
+
+        // Platz bekommen beendet alles
+        w.ObserveSeated();
+        Eq("Platz beendet die Suche", false, w.SeekingSeat);
+        Eq("Platz beendet die Absicht", false, w.SitOutIntent);
+
+        // Ohne Aussetz-Absicht wird nie nach einem Platz gesucht: ein Platz, den der
+        // Spieler selbst verlassen hat, geht uns nichts an.
+        w = new WongState();
+        Eq("keine Suche ohne Absicht", false, w.WantSeat());
+        Eq("sucht nicht", false, w.SeekingSeat);
+
+        // Ein gesetzter Einsatz beendet die Suche ebenfalls
+        w = new WongState();
+        w.SkippedBet();
+        w.ObserveNoSeat();
+        w.WantSeat();
+        w.PlacedBet();
+        Eq("Einsatz beendet die Suche", false, w.SeekingSeat);
+
+        // Tischwechsel ebenso
+        w = new WongState();
+        w.SkippedBet();
+        w.WantSeat();
+        w.Reset();
+        Eq("Reset beendet die Suche", false, w.SeekingSeat);
     }
 
     // ───────────────────── Session statistics ─────────────────────

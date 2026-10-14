@@ -281,6 +281,14 @@ namespace BJCCheat
                 {"de", "True Count {0:+0.0;-0.0;0.0} · zurück ab {1:+0.#;-0.#;0}"},
                 {"en", "True Count {0:+0.0;-0.0;0.0} · back from {1:+0.#;-0.#;0}"}
             }},
+            {"waiting_seat_full", new Dictionary<string, string> {
+                {"de", "Schuh ist gut - Tisch ist voll, warte auf einen Platz"},
+                {"en", "Shoe is good - table is full, waiting for a seat"}
+            }},
+            {"waiting_seat", new Dictionary<string, string> {
+                {"de", "Schuh ist gut - nehme den nächsten freien Platz"},
+                {"en", "Shoe is good - taking the next free seat"}
+            }},
             // -- Count reliability --
             {"count_unreliable", new Dictionary<string, string> {
                 {"de", "ZÄHLUNG UNZUVERLÄSSIG"},

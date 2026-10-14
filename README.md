@@ -164,6 +164,13 @@ deliberately apart — out below TC −1, back in from TC 0 — so it cannot sta
 down on every swing. After four skipped rounds in a row it pays one table minimum to hold
 the seat, for tables that tolerate a missed bet.
 
+Once the shoe has turned, the decision to go back in is held, not taken again every frame.
+At a full table the wait for a seat lasts rounds, and the count moves while it lasts: a mod
+that re-decides each time skips the seat that frees up at TC −0.4 and finds the table full
+again by the time the count is back over the line. From the moment it wants in, every free
+seat is taken immediately; only a shoe that turns genuinely bad again calls off the search.
+The overlay says which of the two waits it is — for the shoe, or for a seat.
+
 ### Session Statistics
 
 A chip count cannot tell an edge from a lucky run, so the session panel puts the result

@@ -13,6 +13,7 @@ namespace BJCCheat
     {
         private bool _intent;
         private bool _seatLost;
+        private bool _seeking;
 
         /// <summary>We are deliberately not betting.</summary>
         public bool SitOutIntent { get { return _intent; } }
@@ -20,10 +21,16 @@ namespace BJCCheat
         /// <summary>Standing beside the table: meant to sit out and the seat is gone.</summary>
         public bool IsOutside { get { return _intent && _seatLost; } }
 
+        /// <summary>
+        /// Looking for a seat: the shoe turned and any free one will do.
+        /// </summary>
+        public bool SeekingSeat { get { return _intent && _seeking; } }
+
         public void Reset()
         {
             _intent = false;
             _seatLost = false;
+            _seeking = false;
         }
 
         /// <summary>A bet was skipped on purpose.</summary>
@@ -37,6 +44,36 @@ namespace BJCCheat
         {
             _intent = false;
             _seatLost = false;
+            _seeking = false;
+        }
+
+        /// <summary>
+        /// The shoe turned: from here on take any seat that frees up. Latched on
+        /// purpose. At a full table the wait for a seat lasts rounds, and the count
+        /// drifts while it does - deciding again on every frame means a seat that
+        /// opens during a dip to -0.4 is passed over, and by the time the count is
+        /// back above the line the seat is gone. The latch is only dropped when the
+        /// shoe turns genuinely bad again (StopSeeking), which is what the dead band
+        /// between WongOutTrueCount and WongInTrueCount is for.
+        ///
+        /// Returns true the first time, so the decision gets logged once.
+        /// </summary>
+        public bool WantSeat()
+        {
+            if (!_intent || _seeking) return false;
+            _seeking = true;
+            return true;
+        }
+
+        /// <summary>
+        /// The shoe went bad again before a seat came free - stop looking.
+        /// True exactly once, for the log.
+        /// </summary>
+        public bool StopSeeking()
+        {
+            if (!_seeking) return false;
+            _seeking = false;
+            return true;
         }
 
         /// <summary>
@@ -48,6 +85,7 @@ namespace BJCCheat
             if (!_seatLost) return false;
             _seatLost = false;
             _intent = false;
+            _seeking = false;
             return true;
         }
 

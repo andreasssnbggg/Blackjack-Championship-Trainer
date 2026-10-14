@@ -34,8 +34,15 @@ namespace BJCCheat
         /// <summary>Standing beside the table, waiting for the shoe to turn.</summary>
         public static bool WongedOut { get { return Wong.IsOutside; } }
 
+        /// <summary>The shoe turned and we are after a seat - for the overlay.</summary>
+        public static bool SeekingSeat { get { return Wong.SeekingSeat; } }
+
+        /// <summary>Seeking a seat and not finding one - for the overlay.</summary>
+        public static bool TableFull { get; private set; }
+
         private static float _nextResitTime;
-        private static bool _noSeatLogged;
+        /// <summary>Said once per round why we are still outside.</summary>
+        private static bool _waitLogged;
 
         /// <summary>Seats the server refused this time - try the next one instead of retrying it.</summary>
         private static readonly HashSet<int> _failedSeats = new HashSet<int>();
@@ -110,7 +117,7 @@ namespace BJCCheat
                 Plugin.Counter.NewRound();
                 // Seats free up between rounds - give every seat a fresh chance
                 _failedSeats.Clear();
-                _noSeatLogged = false;
+                _waitLogged = false;
                 Plugin.PlayerScore = 0;
                 Plugin.PlayerSoft = false;
                 Plugin.PlayerPair = false;
@@ -148,7 +155,7 @@ namespace BJCCheat
                 if (Wong.ObserveSeated())
                 {
                     Plugin.Log.LogInfo("[WONG] back at the table");
-                    _noSeatLogged = false;
+                    _waitLogged = false;
                     _failedSeats.Clear();
                     SkippedRounds = 0;
                 }
@@ -597,31 +604,53 @@ namespace BJCCheat
             catch { return; }
 
             float tc = Plugin.EffectiveTrueCount();
-            // Switching wonging off while we stand outside must not strand us there
-            bool comeBack = !Plugin.WongingEnabled
-                || CardCounter.ShouldComeBack(tc, Plugin.CountIsReliable());
-            if (!comeBack) return;
+            bool reliable = Plugin.CountIsReliable();
 
-            if (UnityEngine.Time.unscaledTime < _nextResitTime) return;
-            _nextResitTime = UnityEngine.Time.unscaledTime + 6f; // backoff between attempts
-
-            // The server rejects a sit without a seat index ("Required parameter: seatIndex"),
-            // so we have to pick the seat ourselves.
-            int target = PickFreeSeat();
-            if (target < 0)
+            // Whether we want a seat is latched, not re-decided every frame. At a full
+            // table the wait lasts rounds and the count drifts during it; re-deciding
+            // means the seat that frees up at TC -0.4 is skipped, and by the time the
+            // count is back over the line someone else is sitting in it.
+            if (!Plugin.WongingEnabled)
             {
-                // Say it once, not every 6 seconds for as long as the table stays full
-                if (!_noSeatLogged)
-                {
-                    _noSeatLogged = true;
-                    Plugin.Log.LogInfo($"[WONG] shoe turned (TC={tc:+0.0;-0.0;0.0}) but no seat is free - " +
-                        "waiting for one");
-                }
+                // Wonging switched off while we stand outside - get back in, period
+                if (Wong.WantSeat())
+                    Plugin.Log.LogInfo("[WONG] back-counting switched off - looking for a seat");
+            }
+            else if (CardCounter.ShouldComeBack(tc, reliable))
+            {
+                if (Wong.WantSeat())
+                    Plugin.Log.LogInfo($"[WONG] shoe turned (TC={tc:+0.0;-0.0;0.0}) - looking for a seat");
+            }
+            else if (CardCounter.ShouldSitOut(tc, reliable))
+            {
+                if (Wong.StopSeeking())
+                    Plugin.Log.LogInfo($"[WONG] shoe went bad again (TC={tc:+0.0;-0.0;0.0}) - staying out");
+            }
+            // In between (the dead band) the latch keeps whatever it had.
+
+            if (!Wong.SeekingSeat)
+            {
+                ReportWaiting($"waiting out the shoe (TC={tc:+0.0;-0.0;0.0}" +
+                              (reliable ? ")" : ", count unreliable)"));
                 return;
             }
-            _noSeatLogged = false;
 
-            Plugin.Log.LogInfo($"[WONG] shoe turned (TC={tc:+0.0;-0.0;0.0}) - taking seat {target}");
+            // Scanning the seat map is a dictionary lookup on data we already hold, so
+            // it runs every frame: a seat that frees up has to be ours before the next
+            // player clicks Join. Only the sit request itself is rate limited.
+            int target = PickFreeSeat();
+            TableFull = target < 0;
+            if (target < 0)
+            {
+                ReportWaiting($"TC={tc:+0.0;-0.0;0.0}, no seat free - {SeatMap()}");
+                return;
+            }
+
+            // A sit request may still be in flight - do not send a second one
+            if (UnityEngine.Time.unscaledTime < _nextResitTime) return;
+            _nextResitTime = UnityEngine.Time.unscaledTime + 6f;
+
+            Plugin.Log.LogInfo($"[WONG] taking seat {target} (TC={tc:+0.0;-0.0;0.0})");
             try
             {
                 Table.Sit(target, delegate(Result result)
@@ -647,8 +676,20 @@ namespace BJCCheat
         }
 
         /// <summary>
-        /// A seat we are allowed to take: unoccupied, not locked and without a prohibit
-        /// reason from the server. Our old seat first, since it is the least conspicuous.
+        /// Says once per round why we are still standing outside. A bot that waits
+        /// correctly and a bot that is stuck look exactly the same on screen - the
+        /// only difference is whether it says so.
+        /// </summary>
+        private static void ReportWaiting(string why)
+        {
+            if (_waitLogged) return;
+            _waitLogged = true;
+            Plugin.Log.LogInfo($"[WONG] outside: {why}");
+        }
+
+        /// <summary>
+        /// A seat we are allowed to take: unoccupied or abandoned, and not locked.
+        /// Our old seat first, since it is the least conspicuous.
         /// </summary>
         private static int PickFreeSeat()
         {
@@ -661,8 +702,6 @@ namespace BJCCheat
 
                 for (int i = 0; i < max; i++)
                     if (IsSeatFree(i, max)) return i;
-
-                LogSeatState(max);
             }
             catch (Exception ex)
             {
@@ -674,7 +713,8 @@ namespace BJCCheat
         /// <summary>
         /// Same rule the game uses for its own join buttons (ShowJoinButtons): a seat is
         /// free when nobody holds it or the holder abandoned it, and it is not locked.
-        /// Nothing else - the server's seat prohibit reasons are not part of it.
+        /// Nothing else - the seat prohibit reasons from the server are not part of it.
+        /// A seat that frees up mid-round counts too; the game offers those as well.
         /// </summary>
         private static bool IsSeatFree(int index, int max)
         {
@@ -693,11 +733,14 @@ namespace BJCCheat
             catch { return false; }
         }
 
-        /// <summary>Why no seat was free - so a silent wait is never a mystery again.</summary>
-        private static void LogSeatState(int max)
+        /// <summary>Seat by seat, so a silent wait is never a mystery again.</summary>
+        private static string SeatMap()
         {
-            if (_noSeatLogged) return;
             var sb = new System.Text.StringBuilder();
+            int max;
+            try { max = Table.MaxSeats; } catch { return "seats unreadable"; }
+            if (max <= 0) return "table reports no seats";
+
             for (int i = 0; i < max; i++)
             {
                 if (sb.Length > 0) sb.Append(", ");
@@ -709,11 +752,11 @@ namespace BJCCheat
                     if (Table.Seats != null && Table.Seats.ContainsKey(i))
                         sb.Append(Table.Seats[i] != null ? Table.Seats[i].SeatState.ToString() : "taken");
                     else
-                        sb.Append("free?");
+                        sb.Append("free");
                 }
                 catch { sb.Append("?"); }
             }
-            Plugin.Log.LogInfo($"[WONG] seats: {sb}");
+            return sb.ToString();
         }
 
         private static float _lobbySince;

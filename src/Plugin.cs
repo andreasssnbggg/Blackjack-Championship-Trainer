@@ -512,9 +512,15 @@ namespace BJCCheat
             if (ActiveTable.WongedOut)
             {
                 Colored(Lang.T("waiting_outside"), _big, Orange);
-                Colored(sitOut == Plugin.SitOut.UnreliableCount
-                    ? Lang.T("waiting_outside_unreliable")
-                    : Lang.T("waiting_outside_count", tc, CardCounter.WongInTrueCount), _center, Muted);
+                // Waiting for the shoe and waiting for a seat look identical on
+                // screen, and only one of them is something we can do anything about
+                if (ActiveTable.SeekingSeat)
+                    Colored(Lang.T(ActiveTable.TableFull ? "waiting_seat_full" : "waiting_seat"),
+                        _center, Muted);
+                else
+                    Colored(sitOut == Plugin.SitOut.UnreliableCount
+                        ? Lang.T("waiting_outside_unreliable")
+                        : Lang.T("waiting_outside_count", tc, CardCounter.WongInTrueCount), _center, Muted);
                 return;
             }
 
