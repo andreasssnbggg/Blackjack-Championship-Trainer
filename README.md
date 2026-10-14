@@ -27,7 +27,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | | |
 |---|---|
 | **Tested with** | Blackjack Championship (Steam App ID 1178160), October 2026 build |
-| **Mod version** | 1.2.3 |
+| **Mod version** | 1.2.4 |
 | **Requires** | BepInEx 5.4.x **32-bit (x86)** |
 
 ---
@@ -45,7 +45,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | **Insurance Advice** | Take/decline insurance based on true count (≥ +3 = take) |
 | **Auto-Play / Auto-Bet** | Optional: plays the strategy and places the recommended bet automatically |
 | **Auto-Rejoin** | Optional: when a table dies, looks for a new one of the same stage. Private tables are opened rather than matched into, which costs a ticket, so that half is a separate switch and off by default |
-| **Private tables** | Counting, strategy, auto-play, auto-bet, back-counting and the statistics work there unchanged — they never ask what kind of table it is |
+| **Private tables** | Supported, including betting several hands in one round — the stake per hand is scaled for the added risk |
 | **Speed Hack** | 5× game speed via `Time.timeScale` |
 | **Quiet console** | Drops the Unity engine warnings that repeat every frame, so the log stays readable. Each filtered pattern is named once |
 | **Bilingual UI** | Full German/English support, starts in your system language, toggle with F7 |
@@ -175,14 +175,28 @@ The overlay says which of the two waits it is — for the shoe, or for a seat.
 
 ### Private Tables
 
-Everything the mod reads from a table — the shoe, the hands, the seats, the bet limits —
-comes from the same objects whatever kind of table it is, so counting, strategy, auto-play,
-auto-bet, back-counting and the statistics need no special case.
+A private table is a different table UI (`UISingleBlackjackTable`), and it bets differently:
+the whole table belongs to you, so one action carries an **array of amounts, one per seat**,
+rather than a single amount for your own seat. Two things follow, and both of them made the
+mod do nothing at all there until 1.2.4 — the turns carry no local seat before the first bet,
+so looking for one whose `Seat.IsLocalSeat` is true found nothing; and the single-amount
+`BET` the game uses everywhere else is not what this table accepts. Both rules are now taken
+from the game's own code.
 
-Rejoining does. A public table is *matched into* from the lobby; a private one is *opened*,
-and opening it costs a private-table ticket. So the two go down different paths, and the
-private one is off until switched on, under the rejoin toggle, with the ticket count in the
-label. It also checks the ticket before spending it and says what it is doing.
+Since every seat is yours, **how many hands to play is a choice**, and a selector in the menu
+(1 / 2 / 3, private tables only) makes it. Hands dealt from one shoe against one dealer up
+card are correlated, so three hands at the full bet is not three independent bets — it is
+closer to one bet three times the size. The stake per hand is scaled down for it: 73 % of the
+one-hand bet for two hands, 60 % for three, the published equivalence factors for the same
+risk of ruin. Rather more money goes out per round (1.46× and 1.80× a single bet), which is
+the point — more hands per shoe at the same risk, not more risk.
+
+Rejoining differs too. A public table is *matched into* from the lobby; a private one is
+*opened*, and opening it costs a private-table ticket. So the two go down different paths,
+and the private one is off until switched on, under the rejoin toggle, with the ticket count
+in the label. The ticket is checked before it is spent, and before every private round — the
+game checks it there as well, so a missing ticket reads as a clear line in the log instead of
+a silent refusal.
 
 Two things behave differently there and the overlay cannot show it, so the log says it once
 per table: the game offers no join buttons at a private table at all, so a seat given up
@@ -244,6 +258,7 @@ test/                   # Standalone test suite, runs without the game
 | **TableRules.cs** | Learns whether the dealer hits or stands on soft 17 by replaying each finished dealer hand card by card. A hand that passes through soft 17 and draws again settles H17 in one observation; the opposite case needs several sightings, because with every player busted the dealer never draws at all. |
 | **WongState.cs** | Keeps the sit-out **intent** apart from the **state** of having no seat. The server takes the seat seconds after the skipped bet, and anything that forgets the intent in between never comes back. |
 | **SessionStats.cs** | Rounds, amount wagered, result, expectation, standard deviation and the resulting verdict. Buy-ins are detected and kept out of the result. |
+| **CardCounter.PerHandBet** | Risk-equivalent stake when several hands are played in one round. Correlated hands are not independent bets, so the per-hand stake comes down as the hand count goes up. |
 | **NoiseFilter.cs / LogNoise.cs** | Unity repeats some engine warnings once per object per frame, and BepInEx forwards all of them, so one misconfigured particle effect in the game buries everything else. A prefix on `Logger.InternalLogEvent` drops the known-worthless ones and names each pattern once, so nothing disappears silently. Only messages from the `Unity Log` source are candidates — a plugin is never silenced. The whole Unity feed could be switched off in `BepInEx.cfg` instead, but game-side exceptions arrive through that feed and are worth keeping. |
 | **MonoShutdownFix.cs** | Repairs corrupted `friend_assembly_names` pointer in Mono assembly structs caused by MonoMod 22.01 (shipped with BepInEx 5.4.23). Prevents crash-on-exit in Unity 2022.3 x86. |
 

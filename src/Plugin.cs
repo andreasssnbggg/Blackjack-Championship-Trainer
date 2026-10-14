@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace BJCCheat
 {
-    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.2.3")]
+    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.2.4")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource Log;
@@ -85,6 +85,13 @@ namespace BJCCheat
         /// public table, opening a private one spends a ticket.
         /// </summary>
         public static bool AutoRejoinPrivateEnabled = false;
+
+        /// <summary>
+        /// Hands to play per round at a private table, where every seat is yours.
+        /// One by default - more hands is more money on the felt per round, and the
+        /// per-hand stake is scaled down for it (see CardCounter.PerHandBet).
+        /// </summary>
+        public static int PrivateHands = 1;
 
         public static string PlayState = "";
         public static int DealerUpCard = 0;
@@ -367,6 +374,21 @@ namespace BJCCheat
                                  : Lang.T("rejoin_private_toggle"));
                 GUILayout.EndHorizontal();
             }
+            if (ActiveTable.IsPrivateTable)
+            {
+                // Every seat at a private table is yours, so the number of hands is a
+                // choice the mod has to make - and it is not free, see PerHandBet
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(Lang.T("hands_per_round"), GUILayout.ExpandWidth(false));
+                int pick = GUILayout.Toolbar(Plugin.PrivateHands - 1, new[] { "1", "2", "3" });
+                Plugin.PrivateHands = Mathf.Clamp(pick + 1, 1, CardCounter.MaxHands);
+                GUILayout.EndHorizontal();
+
+                long tickets = ActiveTable.PrivateTableTickets();
+                if (tickets >= 0)
+                    Colored(Lang.T("private_tickets", tickets), _center, tickets > 0 ? Muted : Bad);
+            }
+
             bool speed = GUILayout.Toggle(Plugin.SpeedHack, Lang.T("speedhack"));
             if (speed != Plugin.SpeedHack)
                 SetSpeedHack(speed);

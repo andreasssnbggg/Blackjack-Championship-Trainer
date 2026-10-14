@@ -281,6 +281,14 @@ namespace BJCCheat
                 {"de", "True Count {0:+0.0;-0.0;0.0} · zurück ab {1:+0.#;-0.#;0}"},
                 {"en", "True Count {0:+0.0;-0.0;0.0} · back from {1:+0.#;-0.#;0}"}
             }},
+            {"hands_per_round", new Dictionary<string, string> {
+                {"de", "Hände pro Runde:"},
+                {"en", "Hands per round:"}
+            }},
+            {"private_tickets", new Dictionary<string, string> {
+                {"de", "Privater Tisch · {0} Tickets übrig"},
+                {"en", "Private table · {0} tickets left"}
+            }},
             {"rejoin_private_toggle", new Dictionary<string, string> {
                 {"de", "auch private Tische neu eröffnen (kostet ein Ticket)"},
                 {"en", "open a new private table too (costs a ticket)"}

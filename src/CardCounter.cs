@@ -222,6 +222,42 @@ namespace BJCCheat
             return Math.Max(bet, min);
         }
 
+        /// <summary>
+        /// How many hands may be played at once on a private table.
+        /// </summary>
+        public const int MaxHands = 3;
+
+        /// <summary>
+        /// Risk-equivalent bet per hand when several hands are played in the same round.
+        ///
+        /// Hands dealt from one shoe against one dealer up card are correlated, so N hands
+        /// of the full bet are not N independent bets - they are closer to one bet of
+        /// N times the size, and the bankroll swings accordingly. The published
+        /// equivalence factors (Schlesinger, Blackjack Attack) put two hands at about
+        /// 73 % and three at about 60 % of the one-hand bet for the same risk of ruin.
+        /// Slightly more money goes out per round that way (1.46x and 1.80x of a single
+        /// bet), which is the point: more hands per shoe at the same risk.
+        /// </summary>
+        public static long PerHandBet(long oneHandBet, int hands, long min, long step)
+        {
+            if (hands > MaxHands) hands = MaxHands;
+
+            long bet = oneHandBet;
+            if (hands > 1)
+            {
+                double factor = hands == 2 ? 0.73 : 0.60;
+                bet = (long)(oneHandBet * factor);
+            }
+
+            // Applied for one hand too, not only for the scaled-down ones: a function
+            // handed a minimum and a step has to return a bet that respects them
+            // whatever the count of hands, or the single-hand case quietly skips the
+            // only two rules the table actually enforces.
+            if (step > 0) bet -= bet % step;
+            if (min > 0 && bet < min) bet = min;
+            return bet;
+        }
+
         public int GetRankCount(int rank)
         {
             if (rank < 1 || rank > 13) return 0;

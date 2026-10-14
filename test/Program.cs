@@ -289,6 +289,52 @@ static class Program
         Eq("Reset beendet die Suche", false, w.SeekingSeat);
     }
 
+    // ───────────────────── Mehrere Hände (privater Tisch) ─────────────────────
+
+    static void PerHandBetTests()
+    {
+        // Eine Hand bleibt unangetastet - die ganze Rechnung darf den Normalfall
+        // nicht anfassen.
+        Eq("eine Hand unveraendert", 10000L, CardCounter.PerHandBet(10000, 1, 1000, 100));
+        Eq("null Haende wie eine", 10000L, CardCounter.PerHandBet(10000, 0, 1000, 100));
+        Eq("negative Haende wie eine", 10000L, CardCounter.PerHandBet(10000, -3, 1000, 100));
+
+        // Zwei und drei Hände: 73 % bzw. 60 % der Einzelhand
+        Eq("zwei Haende 73%", 7300L, CardCounter.PerHandBet(10000, 2, 0, 0));
+        Eq("drei Haende 60%", 6000L, CardCounter.PerHandBet(10000, 3, 0, 0));
+
+        // Mehr als erlaubt wird gedeckelt, nicht hochgerechnet
+        Eq("vier Haende wie drei", CardCounter.PerHandBet(10000, 3, 0, 0),
+                                   CardCounter.PerHandBet(10000, 4, 0, 0));
+
+        // Pro Hand weniger, insgesamt mehr - das ist der Sinn der Sache, und wenn
+        // sich das Vorzeichen dreht, stimmt die Rechnung nicht mehr.
+        long one = CardCounter.PerHandBet(10000, 1, 0, 0);
+        long two = CardCounter.PerHandBet(10000, 2, 0, 0);
+        long three = CardCounter.PerHandBet(10000, 3, 0, 0);
+        Eq("zwei Haende: pro Hand weniger", true, two < one);
+        Eq("drei Haende: pro Hand noch weniger", true, three < two);
+        Eq("zwei Haende: insgesamt mehr", true, 2 * two > one);
+        Eq("drei Haende: insgesamt mehr als zwei", true, 3 * three > 2 * two);
+
+        // Der Gesamteinsatz darf nicht davonlaufen: hoechstens das Doppelte einer
+        // Einzelhand, sonst waere die Risikoangleichung sinnlos.
+        Eq("zwei Haende unter 2x gesamt", true, 2 * two <= 2 * one);
+        Eq("drei Haende unter 2x gesamt", true, 3 * three <= 2 * one);
+
+        // Tischminimum schlaegt die Verkleinerung - unter das Minimum geht kein Einsatz
+        Eq("Minimum wird eingehalten", 10000L, CardCounter.PerHandBet(10000, 3, 10000, 0));
+        Eq("Minimum schlaegt zwei Haende", 10000L, CardCounter.PerHandBet(12000, 2, 10000, 0));
+
+        // Schrittweite: das Ergebnis muss ein gueltiger Einsatz sein
+        for (int hands = 1; hands <= CardCounter.MaxHands; hands++)
+        {
+            long bet = CardCounter.PerHandBet(13337, hands, 1000, 1000);
+            Eq("Schrittweite eingehalten (" + hands + " Haende)", 0L, bet % 1000);
+            Eq("nicht unter Minimum (" + hands + " Haende)", true, bet >= 1000);
+        }
+    }
+
     // ───────────────────── Log-Rauschfilter ─────────────────────
 
     static void NoiseFilterTests()
@@ -737,6 +783,7 @@ static class Program
         StatsTests();
         WongStateTests();
         NoiseFilterTests();
+        PerHandBetTests();
 
         Console.WriteLine();
         Console.WriteLine($"{_passed} bestanden, {_failed} fehlgeschlagen");

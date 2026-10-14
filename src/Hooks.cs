@@ -49,6 +49,7 @@ namespace BJCCheat
         }
 
         private static bool _privateWongWarned;
+        private static bool _noTicketLogged;
 
         /// <summary>
         /// Back-counting at a private table is a different bet from back-counting in a
@@ -959,19 +960,9 @@ namespace BJCCheat
                 return;
             }
 
-            // Find our local BET turn
-            BJTurn betTurn = null;
-            foreach (var turn in Table.Play.Turns)
-            {
-                if (turn == null || turn.Seat == null || !turn.Seat.IsLocalSeat) continue;
-                string[] valid = GetValidActions(turn);
-                if (valid != null && Has(valid, "BET"))
-                {
-                    betTurn = turn;
-                    break;
-                }
-            }
+            bool single = IsPrivateTable;
 
+            BJTurn betTurn = single ? FindSingleBetTurn() : FindSeatBetTurn();
             if (betTurn == null) return;
 
             // Already bet this round
@@ -1036,24 +1027,149 @@ namespace BJCCheat
 
             try
             {
-                long placed = bet;
-                Table.Action(betTurn, "BET", bet, delegate(Result result)
-                {
-                    if (result.IsSuccess)
-                    {
-                        _lastBetAmount = placed;
-                        SessionStats.NoteBet(placed);
-                        Plugin.Log.LogInfo($"[AUTOBET] BET {placed:N0} OK");
-                    }
-                    else
-                        Plugin.Log.LogWarning($"[AUTOBET] BET {placed:N0} FAIL: {result}");
-                });
+                if (single) SendSingleBet(betTurn, bet);
+                else SendSeatBet(betTurn, bet);
             }
             catch (Exception ex)
             {
                 Plugin.Log.LogError($"[AUTOBET] Error: {ex.Message}");
                 _lastBetPlaySeq = -1; // Allow retry
             }
+        }
+
+        static void SendSeatBet(BJTurn betTurn, long bet)
+        {
+            long placed = bet;
+            Table.Action(betTurn, "BET", bet, delegate(Result result)
+            {
+                if (result.IsSuccess)
+                {
+                    _lastBetAmount = placed;
+                    SessionStats.NoteBet(placed);
+                    Plugin.Log.LogInfo($"[AUTOBET] BET {placed:N0} OK");
+                }
+                else
+                    Plugin.Log.LogWarning($"[AUTOBET] BET {placed:N0} FAIL: {result}");
+            });
+        }
+
+        /// <summary>
+        /// Our normal table: one turn per seat, and only our own seat is ours to bet on.
+        /// </summary>
+        static BJTurn FindSeatBetTurn()
+        {
+            foreach (var turn in Table.Play.Turns)
+            {
+                if (turn == null || turn.Seat == null || !turn.Seat.IsLocalSeat) continue;
+                string[] valid = GetValidActions(turn);
+                if (valid != null && Has(valid, "BET")) return turn;
+            }
+            return null;
+        }
+
+        // ─────────────────── private ("single") tables ───────────────────
+        //
+        // A private table is the whole table: every seat belongs to the player, and all
+        // of them are bet in ONE action carrying an array of amounts indexed by seat.
+        // Two consequences, and both of them made the mod do nothing at all there:
+        //
+        //  - the turns are not attached to a local seat before the first bet, so looking
+        //    for a turn whose Seat.IsLocalSeat is true found none, and
+        //  - the single-amount BET the game uses everywhere else is not what this table
+        //    takes; it wants amountBets, one entry per seat.
+        //
+        // Both rules below are the game's own, from UISingleBlackjackTable.
+
+        /// <summary>Seat order the game itself offers: middle first, then right, then left.</summary>
+        private static readonly int[] SingleSeatOrder = { 1, 2, 0 };
+
+        /// <summary>Seats picked for the current bet, in the order they will be played.</summary>
+        private static readonly List<int> _singleSeats = new List<int>(CardCounter.MaxHands);
+
+        /// <summary>
+        /// A turn that may be bet on, and the seats to bet on with it. Unlike the normal
+        /// table this does not ask whose seat it is - at a private table they are all ours.
+        /// </summary>
+        static BJTurn FindSingleBetTurn()
+        {
+            _singleSeats.Clear();
+            BJTurn betTurn = null;
+
+            int max;
+            try { max = Table.MaxSeats; } catch { return null; }
+
+            int wanted = Plugin.PrivateHands;
+            if (wanted < 1) wanted = 1;
+            if (wanted > CardCounter.MaxHands) wanted = CardCounter.MaxHands;
+
+            foreach (int seat in SingleSeatOrder)
+            {
+                if (seat >= max || _singleSeats.Count >= wanted) continue;
+
+                BJTurn[] turns;
+                try { turns = Table.Play.GetTurns(seat); }
+                catch { continue; }
+                if (turns == null) continue;
+
+                foreach (var turn in turns)
+                {
+                    if (turn == null) continue;
+                    bool enabled;
+                    try { enabled = turn.GetActionState("BET") == BJActionState.ENABLED; }
+                    catch { continue; }
+                    if (!enabled) continue;
+
+                    if (betTurn == null) betTurn = turn;
+                    _singleSeats.Add(seat);
+                    break;
+                }
+            }
+
+            return _singleSeats.Count > 0 ? betTurn : null;
+        }
+
+        /// <summary>
+        /// One action, an amount per seat, zero for the seats we are not playing.
+        /// </summary>
+        static void SendSingleBet(BJTurn betTurn, long oneHandBet)
+        {
+            // The game checks this before it deals a private round (DealSingleBet), so
+            // we check it too rather than letting the server refuse and look like a bug
+            long tickets = PrivateTableTickets();
+            if (tickets == 0)
+            {
+                if (!_noTicketLogged)
+                {
+                    _noTicketLogged = true;
+                    Plugin.Log.LogWarning("[AUTOBET] no private table ticket left - the game will not deal");
+                }
+                _lastBetPlaySeq = -1; // not handled, try again next frame
+                return;
+            }
+            _noTicketLogged = false;
+
+            int hands = _singleSeats.Count;
+            long perHand = CardCounter.PerHandBet(oneHandBet, hands, Plugin.BetMin, Plugin.BetStep);
+
+            int max = Table.MaxSeats;
+            long[] amounts = new long[max];
+            foreach (int seat in _singleSeats)
+                if (seat >= 0 && seat < max) amounts[seat] = perHand;
+
+            long total = perHand * hands;
+            string seatList = string.Join(",", _singleSeats.ConvertAll(i => i.ToString()).ToArray());
+
+            Table.Action(betTurn, "BET", amounts, delegate(Result result)
+            {
+                if (result != null && result.IsSuccess)
+                {
+                    _lastBetAmount = total;
+                    SessionStats.NoteBet(total);
+                    Plugin.Log.LogInfo($"[AUTOBET] BET {perHand:N0} x{hands} (seats {seatList}) = {total:N0} OK");
+                }
+                else
+                    Plugin.Log.LogWarning($"[AUTOBET] BET {perHand:N0} x{hands} FAIL: {result}");
+            });
         }
     }
 
