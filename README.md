@@ -27,7 +27,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | | |
 |---|---|
 | **Tested with** | Blackjack Championship (Steam App ID 1178160), October 2026 build |
-| **Mod version** | 1.3.1 |
+| **Mod version** | 1.3.2 |
 | **Requires** | BepInEx 5.4.x **32-bit (x86)** |
 
 ---

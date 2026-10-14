@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace BJCCheat
 {
-    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.3.1")]
+    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.3.2")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource Log;
@@ -357,7 +357,7 @@ namespace BJCCheat
 
         void DrawMenu(int id)
         {
-            DrawTitle(Lang.T("title_suite"));
+            DrawTitle(Lang.T("title_suite"), _menuRect.width);
             GUILayout.Space(5);
             DrawCounter();
             GUILayout.Space(8);
@@ -377,9 +377,10 @@ namespace BJCCheat
                 GUILayout.BeginHorizontal();
                 GUILayout.Space(16);
                 Plugin.AutoRejoinPrivateEnabled = GUILayout.Toggle(Plugin.AutoRejoinPrivateEnabled,
-                    tickets >= 0 ? Lang.T("rejoin_private_toggle_n", tickets)
-                                 : Lang.T("rejoin_private_toggle"));
+                    Lang.T("rejoin_private_toggle"));
                 GUILayout.EndHorizontal();
+                if (tickets >= 0)
+                    Colored(Lang.T("rejoin_private_cost", tickets), _center, Muted);
             }
             if (ActiveTable.IsPrivateTable)
             {
@@ -398,6 +399,8 @@ namespace BJCCheat
 
             CardCounter.BankrollCapEnabled = GUILayout.Toggle(CardCounter.BankrollCapEnabled,
                 Lang.T("bankroll_cap_toggle"));
+            if (CardCounter.BankrollCapEnabled)
+                Colored(Lang.T("bankroll_cap_hint"), _center, Muted);
 
             bool speed = GUILayout.Toggle(Plugin.SpeedHack, Lang.T("speedhack"));
             if (speed != Plugin.SpeedHack)
@@ -561,7 +564,7 @@ namespace BJCCheat
 
         void DrawAdvice(int id)
         {
-            DrawTitle(Lang.T("title_strategy"));
+            DrawTitle(Lang.T("title_strategy"), _adviceRect.width);
             float tc = Plugin.EffectiveTrueCount();
 
             if (Plugin.PlayState == "BET")
@@ -689,10 +692,17 @@ namespace BJCCheat
 
         // ── Drawing helpers ──
 
-        void DrawTitle(string text)
+        /// <summary>
+        /// Centred across the window that is actually on screen, not across WindowWidth.
+        /// GUILayout treats that constant as a wish: one label too wide for it pushes the
+        /// window out, and a title centred on the old number then sits visibly off to the
+        /// left. The width comes from last frame's rect, which settles in one frame.
+        /// </summary>
+        void DrawTitle(string text, float width)
         {
+            if (width < WindowWidth) width = WindowWidth;
             GUI.color = Gold;
-            GUI.Label(new Rect(0, 0, WindowWidth, TitleHeight), text, _title);
+            GUI.Label(new Rect(0, 0, width, TitleHeight), text, _title);
             GUI.color = Color.white;
         }
 

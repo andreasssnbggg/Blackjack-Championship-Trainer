@@ -282,8 +282,16 @@ namespace BJCCheat
                 {"en", "True Count {0:+0.0;-0.0;0.0} · back from {1:+0.#;-0.#;0}"}
             }},
             {"bankroll_cap_toggle", new Dictionary<string, string> {
-                {"de", "Einsätze auf halbes Kelly begrenzen (schützt das Guthaben, bremst stark)"},
-                {"en", "Cap bets at half Kelly (protects the bankroll, slows it right down)"}
+                {"de", "Einsatzlimit nach Guthaben [halbes Kelly]"},
+                {"en", "Bankroll limit on bets [half Kelly]"}
+            }},
+            {"bankroll_cap_hint", new Dictionary<string, string> {
+                {"de", "schützt das Guthaben, bremst den Spread stark"},
+                {"en", "protects the bankroll, slows the spread right down"}
+            }},
+            {"rejoin_private_cost", new Dictionary<string, string> {
+                {"de", "kostet 1 von {0} Tickets"},
+                {"en", "costs 1 of {0} tickets"}
             }},
             {"table_too_expensive", new Dictionary<string, string> {
                 {"de", "TISCH ZU TEUER FÜR DEIN GUTHABEN"},
@@ -302,12 +310,8 @@ namespace BJCCheat
                 {"en", "Private table · {0} tickets left"}
             }},
             {"rejoin_private_toggle", new Dictionary<string, string> {
-                {"de", "auch private Tische neu eröffnen (kostet ein Ticket)"},
-                {"en", "open a new private table too (costs a ticket)"}
-            }},
-            {"rejoin_private_toggle_n", new Dictionary<string, string> {
-                {"de", "auch private Tische neu eröffnen (kostet 1 von {0} Tickets)"},
-                {"en", "open a new private table too (costs 1 of {0} tickets)"}
+                {"de", "auch private Tische"},
+                {"en", "private tables too"}
             }},
             {"waiting_seat_full", new Dictionary<string, string> {
                 {"de", "Schuh ist gut - Tisch ist voll, warte auf einen Platz"},
