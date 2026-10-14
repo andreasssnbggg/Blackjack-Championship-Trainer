@@ -176,12 +176,15 @@ The overlay says which of the two waits it is — for the shoe, or for a seat.
 ### Private Tables
 
 A private table is a different table UI (`UISingleBlackjackTable`), and it bets differently:
-the whole table belongs to you, so one action carries an **array of amounts, one per seat**,
-rather than a single amount for your own seat. Two things follow, and both of them made the
-mod do nothing at all there until 1.2.4 — the turns carry no local seat before the first bet,
-so looking for one whose `Seat.IsLocalSeat` is true found nothing; and the single-amount
-`BET` the game uses everywhere else is not what this table accepts. Both rules are now taken
-from the game's own code.
+the whole table belongs to you, so one action carries an **array of amounts, one per seat**
+(`amountBets`), rather than the single `amountBet` every other table takes.
+
+Sending the single amount there does not fail — the server accepts the action and the betting
+turn closes, which is the worst shape a bug can take: the bet controls disappear exactly as if
+it had worked, and no chips are on the table. The log said `BET 10.000 OK` while nothing had
+been bet. The bet and the seat search are now taken from the game's own code
+(`UISingleBlackjackTable.DealSingleBet` and `GetBetTurn`), and the normal table keeps its own
+path rather than sharing one with a flag.
 
 Since every seat is yours, **how many hands to play is a choice**, and a selector in the menu
 (1 / 2 / 3, private tables only) makes it. Hands dealt from one shoe against one dealer up
