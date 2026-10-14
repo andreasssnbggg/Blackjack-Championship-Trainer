@@ -281,6 +281,14 @@ namespace BJCCheat
                 {"de", "True Count {0:+0.0;-0.0;0.0} · zurück ab {1:+0.#;-0.#;0}"},
                 {"en", "True Count {0:+0.0;-0.0;0.0} · back from {1:+0.#;-0.#;0}"}
             }},
+            {"rejoin_private_toggle", new Dictionary<string, string> {
+                {"de", "auch private Tische neu eröffnen (kostet ein Ticket)"},
+                {"en", "open a new private table too (costs a ticket)"}
+            }},
+            {"rejoin_private_toggle_n", new Dictionary<string, string> {
+                {"de", "auch private Tische neu eröffnen (kostet 1 von {0} Tickets)"},
+                {"en", "open a new private table too (costs 1 of {0} tickets)"}
+            }},
             {"waiting_seat_full", new Dictionary<string, string> {
                 {"de", "Schuh ist gut - Tisch ist voll, warte auf einen Platz"},
                 {"en", "Shoe is good - table is full, waiting for a seat"}

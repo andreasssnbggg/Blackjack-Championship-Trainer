@@ -27,7 +27,7 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | | |
 |---|---|
 | **Tested with** | Blackjack Championship (Steam App ID 1178160), October 2026 build |
-| **Mod version** | 1.2.2 |
+| **Mod version** | 1.2.3 |
 | **Requires** | BepInEx 5.4.x **32-bit (x86)** |
 
 ---
@@ -44,7 +44,8 @@ A BepInEx mod for **Blackjack Championship** (Steam) that adds a real-time **Hi-
 | **Session Statistics** | Rounds, amount wagered, result — measured against the expectation **and the standard deviation**, so a lucky run can be told apart from an edge |
 | **Insurance Advice** | Take/decline insurance based on true count (≥ +3 = take) |
 | **Auto-Play / Auto-Bet** | Optional: plays the strategy and places the recommended bet automatically |
-| **Auto-Rejoin** | Optional: when a table dies, looks for a new one of the same stage |
+| **Auto-Rejoin** | Optional: when a table dies, looks for a new one of the same stage. Private tables are opened rather than matched into, which costs a ticket, so that half is a separate switch and off by default |
+| **Private tables** | Counting, strategy, auto-play, auto-bet, back-counting and the statistics work there unchanged — they never ask what kind of table it is |
 | **Speed Hack** | 5× game speed via `Time.timeScale` |
 | **Quiet console** | Drops the Unity engine warnings that repeat every frame, so the log stays readable. Each filtered pattern is named once |
 | **Bilingual UI** | Full German/English support, starts in your system language, toggle with F7 |
@@ -171,6 +172,24 @@ that re-decides each time skips the seat that frees up at TC −0.4 and finds th
 again by the time the count is back over the line. From the moment it wants in, every free
 seat is taken immediately; only a shoe that turns genuinely bad again calls off the search.
 The overlay says which of the two waits it is — for the shoe, or for a seat.
+
+### Private Tables
+
+Everything the mod reads from a table — the shoe, the hands, the seats, the bet limits —
+comes from the same objects whatever kind of table it is, so counting, strategy, auto-play,
+auto-bet, back-counting and the statistics need no special case.
+
+Rejoining does. A public table is *matched into* from the lobby; a private one is *opened*,
+and opening it costs a private-table ticket. So the two go down different paths, and the
+private one is off until switched on, under the rejoin toggle, with the ticket count in the
+label. It also checks the ticket before spending it and says what it is doing.
+
+Two things behave differently there and the overlay cannot show it, so the log says it once
+per table: the game offers no join buttons at a private table at all, so a seat given up
+during back-counting can only be taken back by asking the server directly; and at a table
+where nobody else is betting, sitting a round out can end the table — which then costs
+another ticket. Back-counting stays switchable either way, but it is worth knowing before
+leaving the bot alone at one.
 
 ### Session Statistics
 

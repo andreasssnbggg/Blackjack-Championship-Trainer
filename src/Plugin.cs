@@ -2,12 +2,13 @@ using System;
 using System.Reflection;
 using BepInEx;
 using BepInEx.Logging;
+using Game.Blackjack;
 using HarmonyLib;
 using UnityEngine;
 
 namespace BJCCheat
 {
-    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.2.2")]
+    [BepInPlugin("com.bjc.cheat", "BJC Cheat Suite", "1.2.3")]
     public class Plugin : BaseUnityPlugin
     {
         public static ManualLogSource Log;
@@ -72,6 +73,18 @@ namespace BJCCheat
 
         /// <summary>Stage code of the last table we played, for rejoining after it ends.</summary>
         public static string LastStageCode = null;
+
+        /// <summary>
+        /// The stage object of that table, straight from the server. Private stages are
+        /// never in the lobby listing, so the code alone cannot be resolved back.
+        /// </summary>
+        public static BJStage LastStage = null;
+
+        /// <summary>
+        /// Open a new PRIVATE table when one ends. Off by default: unlike finding another
+        /// public table, opening a private one spends a ticket.
+        /// </summary>
+        public static bool AutoRejoinPrivateEnabled = false;
 
         public static string PlayState = "";
         public static int DealerUpCard = 0;
@@ -343,6 +356,17 @@ namespace BJCCheat
             Plugin.AutoRejoinEnabled = GUILayout.Toggle(Plugin.AutoRejoinEnabled,
                 Lang.T("rejoin_toggle")
                 + (string.IsNullOrEmpty(Plugin.LastStageCode) ? "" : $"  ({Plugin.LastStageCode})"));
+            if (Plugin.AutoRejoinEnabled)
+            {
+                // Only offered once rejoining is on at all, and it says what it costs
+                long tickets = ActiveTable.PrivateTableTickets();
+                GUILayout.BeginHorizontal();
+                GUILayout.Space(16);
+                Plugin.AutoRejoinPrivateEnabled = GUILayout.Toggle(Plugin.AutoRejoinPrivateEnabled,
+                    tickets >= 0 ? Lang.T("rejoin_private_toggle_n", tickets)
+                                 : Lang.T("rejoin_private_toggle"));
+                GUILayout.EndHorizontal();
+            }
             bool speed = GUILayout.Toggle(Plugin.SpeedHack, Lang.T("speedhack"));
             if (speed != Plugin.SpeedHack)
                 SetSpeedHack(speed);

@@ -5,6 +5,7 @@ using HarmonyLib;
 using Game.Blackjack;
 using Game.Common;
 using Game.Common.UI;
+using Game.Lobby;
 using GXF.Base;
 using GXF.UI;
 
@@ -36,6 +37,36 @@ namespace BJCCheat
 
         /// <summary>The shoe turned and we are after a seat - for the overlay.</summary>
         public static bool SeekingSeat { get { return Wong.SeekingSeat; } }
+
+        /// <summary>A private table behaves differently in two ways that matter here.</summary>
+        public static bool IsPrivateTable
+        {
+            get
+            {
+                try { return Table != null && Table.Stage != null && Table.Stage.IsPrivate; }
+                catch { return false; }
+            }
+        }
+
+        private static bool _privateWongWarned;
+
+        /// <summary>
+        /// Back-counting at a private table is a different bet from back-counting in a
+        /// public room, and the difference is not visible from the overlay. The game
+        /// offers no join buttons at a private table at all, so the seat can only be
+        /// taken back through the server call directly; and at a table with no other
+        /// players a skipped round can end the table outright, which then costs a
+        /// ticket to replace. Said once per table - the choice stays the player's.
+        /// </summary>
+        private static void WarnPrivateWonging()
+        {
+            if (_privateWongWarned || !IsPrivateTable) return;
+            _privateWongWarned = true;
+            Plugin.Log.LogWarning("[WONG] this is a private table: the game shows no join buttons here, " +
+                "so getting the seat back depends on the server accepting a direct sit - and if nobody " +
+                "else is betting, sitting out can end the table. Switch back-counting off (F5) if that " +
+                "is not what you want.");
+        }
 
         /// <summary>Seeking a seat and not finding one - for the overlay.</summary>
         public static bool TableFull { get; private set; }
@@ -93,6 +124,7 @@ namespace BJCCheat
                 SkippedRounds = 0;
                 Wong.Reset();
                 _nextResitTime = 0f;
+                _privateWongWarned = false;
                 SessionStats.DropStackBaseline(); // different table, different stack
             }
             Table = t;
@@ -127,8 +159,12 @@ namespace BJCCheat
             // Shoe first: a reshuffle resets the count before this round's cards are counted
             try
             {
-                if (t.Stage != null && !string.IsNullOrEmpty(t.Stage.StageCode))
-                    Plugin.LastStageCode = t.Stage.StageCode;
+                // Keep the stage object itself, not only its code. A private table is
+                // created on the spot and never appears in the lobby listing, so looking
+                // its code up there afterwards finds nothing - but the server sends the
+                // stage along with the table on connect, so we already hold it.
+                if (!string.IsNullOrEmpty(t.StageCode)) Plugin.LastStageCode = t.StageCode;
+                if (t.Stage != null) Plugin.LastStage = t.Stage;
             }
             catch { }
 
@@ -804,25 +840,107 @@ namespace BJCCheat
             }
             if (UnityEngine.Time.unscaledTime - _lobbySince < 5f) return;
 
-            BJStage stage = null;
-            try { stage = BJStage.GetCachedStage(Plugin.LastStageCode); } catch { }
+            // The table's own stage first; the lobby listing only as a fallback
+            BJStage stage = Plugin.LastStage;
+            if (stage == null)
+            {
+                try { stage = BJStage.GetCachedStage(Plugin.LastStageCode); } catch { }
+            }
             if (stage == null)
             {
                 if (!_noStageLogged)
                 {
                     _noStageLogged = true;
-                    Plugin.Log.LogWarning($"[REJOIN] stage {Plugin.LastStageCode} is not in the lobby list");
+                    Plugin.Log.LogWarning($"[REJOIN] stage {Plugin.LastStageCode} is unknown - cannot look for a new table");
                 }
                 _nextRejoinTime = UnityEngine.Time.unscaledTime + 30f;
                 return;
             }
 
+            bool isPrivate;
+            try { isPrivate = stage.IsPrivate; } catch { isPrivate = false; }
+
+            if (isPrivate && !CanOpenPrivateTable(stage)) return;
+
             _noStageLogged = false;
             _lobbySince = 0f;
             _nextRejoinTime = UnityEngine.Time.unscaledTime + 30f; // retry window if it fails
-            Plugin.Log.LogInfo($"[REJOIN] table ended - looking for a new one ({Plugin.LastStageCode})");
-            try { scene.MatchAndMoveToTable(stage); }
+
+            try
+            {
+                if (isPrivate)
+                {
+                    // A private table is not matched into, it is opened. Prefer the lobby's
+                    // own template for this stage number, the way the game's own button
+                    // does it, and fall back to the stage the finished table carried.
+                    BJStage template = null;
+                    try { template = BJStage.GetStage(BJStageType.PRIVATE, stage.StageNo); } catch { }
+
+                    Plugin.Log.LogInfo($"[REJOIN] private table ended - opening a new one " +
+                        $"(stage {stage.StageNo}, this spends a ticket)");
+                    scene.CreateAndMoveToTable(template ?? stage);
+                }
+                else
+                {
+                    Plugin.Log.LogInfo($"[REJOIN] table ended - looking for a new one ({Plugin.LastStageCode})");
+                    scene.MatchAndMoveToTable(stage);
+                }
+            }
             catch (Exception ex) { Plugin.Log.LogError($"[REJOIN] failed: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// Whether we may open a new private table. Opening one costs a ticket, and a
+        /// ticket is bought, won or earned by watching an ad - so it is never spent
+        /// without the player having said so, and never silently. Says each reason once;
+        /// a bot sitting in the lobby all night must not fill the log either.
+        /// </summary>
+        private static bool CanOpenPrivateTable(BJStage stage)
+        {
+            if (!Plugin.AutoRejoinPrivateEnabled)
+            {
+                RejoinBlocked("private table ended - opening a new one costs a ticket, " +
+                              "switch it on in the menu if that is what you want");
+                return false;
+            }
+
+            try
+            {
+                if (Singleton<LocalPlayer>.Instance.IsPrivateTableRestricted)
+                {
+                    RejoinBlocked("private tables are locked on this account");
+                    return false;
+                }
+            }
+            catch { }
+
+            long tickets = PrivateTableTickets();
+            if (tickets <= 0)
+            {
+                RejoinBlocked("private table ended but there is no ticket left to open another");
+                return false;
+            }
+
+            _rejoinBlockedMsg = null;
+            return true;
+        }
+
+        /// <summary>Tickets in hand, or -1 when the game will not say.</summary>
+        public static long PrivateTableTickets()
+        {
+            try { return Singleton<LocalPlayer>.Instance.GetTotalTickets(); }
+            catch { return -1; }
+        }
+
+        private static string _rejoinBlockedMsg;
+
+        /// <summary>Each distinct reason once, then silence until it changes.</summary>
+        private static void RejoinBlocked(string why)
+        {
+            _nextRejoinTime = UnityEngine.Time.unscaledTime + 30f;
+            if (_rejoinBlockedMsg == why) return;
+            _rejoinBlockedMsg = why;
+            Plugin.Log.LogInfo($"[REJOIN] {why}");
         }
 
         /// <summary>
@@ -884,6 +1002,8 @@ namespace BJCCheat
                 string why = sitOut == Plugin.SitOut.UnreliableCount
                     ? "count unreliable, waiting for the shuffle"
                     : $"poor shoe (TC={tc:+0.0;-0.0;0.0})";
+
+                WarnPrivateWonging();
 
                 if (SkippedRounds < CardCounter.MaxSkippedRoundsInARow)
                 {
